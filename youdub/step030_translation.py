@@ -9,8 +9,13 @@ from loguru import logger
 
 load_dotenv()
 
-model_name = os.getenv('MODEL_NAME', 'gpt-3.5-turbo')
-print(f'using model {model_name}')
+# 支持 Groq 配置
+if os.getenv('GROQ_API_KEY'):
+    model_name = os.getenv('GROQ_MODEL', 'llama-3.3-70b-versatile')
+    print(f'using Groq model {model_name}')
+else:
+    model_name = os.getenv('MODEL_NAME', 'gpt-3.5-turbo')
+    print(f'using model {model_name}')
 if model_name == "01ai/Yi-34B-Chat-4bits":
     extra_body = {
         'repetition_penalty': 1.1,
@@ -36,12 +41,20 @@ def ensure_transcript_length(transcript, max_length=4000):
     before, after = transcript[:mid], transcript[mid:]
     length = max_length//2
     return before[:length] + after[-length:]
+def get_openai_client():
+    """获取 OpenAI 客户端，支持 Groq 配置"""
+    if os.getenv('GROQ_API_KEY'):
+        return OpenAI(
+            base_url='https://api.groq.com/openai/v1',
+            api_key=os.getenv('GROQ_API_KEY')
+        )
+    return OpenAI(
+        base_url=os.getenv('OPENAI_API_BASE', 'https://api.openai.com/v1'),
+        api_key=os.getenv('OPENAI_API_KEY')
+    )
+
 def summarize(info, transcript, target_language='简体中文'):
-    client = OpenAI(
-    # This is the default and can be omitted
-    base_url=os.getenv('OPENAI_API_BASE', 'https://api.openai.com/v1'),
-    api_key=os.getenv('OPENAI_API_KEY')
-)
+    client = get_openai_client()
     transcript = ' '.join(line['text'] for line in transcript)
     transcript = ensure_transcript_length(transcript, max_length=2000)
     info_message = f'Title: "{info["title"]}" Author: "{info["uploader"]}". ' 
@@ -251,11 +264,7 @@ def split_sentences(translation):
     return output_data
     
 def _translate(summary, transcript, target_language='简体中文'):
-    client = OpenAI(
-        # This is the default and can be omitted
-        base_url=os.getenv('OPENAI_API_BASE', 'https://api.openai.com/v1'),
-        api_key=os.getenv('OPENAI_API_KEY')
-    )
+    client = get_openai_client()
     info = f'This is a video called "{summary["title"]}". {summary["summary"]}.'
     full_translation = []
     fixed_message = [
@@ -294,12 +303,7 @@ def _translate(summary, transcript, target_language='简体中文'):
             except Exception as e:
                 logger.error(e)
                 if e == 'Internal Server Error':
-                    client = OpenAI(
-                        # This is the default and can be omitted
-                        base_url=os.getenv(
-                            'OPENAI_API_BASE', 'https://api.openai.com/v1'),
-                        api_key=os.getenv('OPENAI_API_KEY')
-                    )
+                    client = get_openai_client()
                 # logger.warning('翻译失败')
                 time.sleep(1)
         full_translation.append(translation)
