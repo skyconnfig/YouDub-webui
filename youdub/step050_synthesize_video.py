@@ -104,7 +104,17 @@ def synthesize_video(folder, subtitles=True, speed_up=1.05, fps=30, resolution='
     
     translation_path = os.path.join(folder, 'translation.json')
     input_audio = os.path.join(folder, 'audio_combined.wav')
-    input_video = os.path.join(folder, 'download.mp4')
+    
+    # Support both .mp4 and .webm formats
+    input_video_mp4 = os.path.join(folder, 'download.mp4')
+    input_video_webm = os.path.join(folder, 'download.webm')
+    if os.path.exists(input_video_mp4):
+        input_video = input_video_mp4
+    elif os.path.exists(input_video_webm):
+        input_video = input_video_webm
+    else:
+        logger.warning(f'No input video found in {folder}')
+        return
     
     if not os.path.exists(translation_path) or not os.path.exists(input_audio):
         return
@@ -149,7 +159,9 @@ def synthesize_video(folder, subtitles=True, speed_up=1.05, fps=30, resolution='
 
 def synthesize_all_video_under_folder(folder, subtitles=True, speed_up=1.05, fps=30, resolution='1080p'):
     for root, dirs, files in os.walk(folder):
-        if 'download.mp4' in files and 'video.mp4' not in files:
+        # Check for either .mp4 or .webm input files
+        has_input = 'download.mp4' in files or 'download.webm' in files
+        if has_input and 'video.mp4' not in files:
             synthesize_video(root, subtitles=subtitles,
                              speed_up=speed_up, fps=fps, resolution=resolution)
     return f'Synthesized all videos under {folder}'

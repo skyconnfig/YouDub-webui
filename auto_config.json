@@ -1,0 +1,20 @@
+{
+  "hardware": {
+    "gpu_name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+    "gpu_memory_gb": 7.99560546875,
+    "gpu_available": true,
+    "cpu_cores": 24,
+    "memory_gb": 15.743194580078125
+  },
+  "mode": "low_vram",
+  "resolution": "1080p",
+  "demucs_model": "htdemucs",
+  "demucs_shifts": 0,
+  "whisper_model": "small",
+  "whisper_batch_size": 8,
+  "whisper_diarization": false,
+  "max_workers": 1,
+  "force_bytedance": true,
+  "expected_time_per_video": "8-12分钟",
+  "note": "显存较低，使用轻量级模型确保安全运行"
+}

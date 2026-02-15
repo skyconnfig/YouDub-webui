@@ -14,8 +14,10 @@ import numpy as np
 import requests
 from loguru import logger
 from dotenv import load_dotenv
-from pyannote.audio import Model, Inference
 from scipy.spatial.distance import cosine
+
+# DON'T import pyannote at module level - it will crash due to torch version conflicts
+# Import it lazily inside functions only when needed
 
 load_dotenv()
 # 填写平台申请的appid, access_token以及cluster
@@ -54,16 +56,39 @@ request_json = {
     }
 }
 
-embedding_model = Model.from_pretrained(
-    "pyannote/embedding", use_auth_token=os.getenv('HF_TOKEN'))
-embedding_inference = Inference(
-    embedding_model, window="whole")
+embedding_model = None
+embedding_inference = None
+pyannote_available = False
+
+def _init_pyannote():
+    """Lazily initialize pyannote"""
+    global embedding_model, embedding_inference, pyannote_available
+    if pyannote_available:
+        return True
+    
+    try:
+        from pyannote.audio import Model, Inference
+        embedding_model = Model.from_pretrained(
+            "pyannote/embedding", use_auth_token=os.getenv('HF_TOKEN'))
+        embedding_inference = Inference(
+            embedding_model, window="whole")
+        pyannote_available = True
+        return True
+    except Exception as e:
+        logger.warning(f"Failed to load pyannote embedding model: {e}")
+        return False
 
 def generate_embedding(wav_path):
+    if embedding_inference is None:
+        if not _init_pyannote():
+            raise RuntimeError("pyannote embedding model not available")
     embedding = embedding_inference(wav_path)
     return embedding
 
 def generate_speaker_to_voice_type(folder):
+    # Initialize pyannote if needed
+    _init_pyannote()
+    
     speaker_to_voice_type_path = os.path.join(folder, 'speaker_to_voice_type.json')
     if os.path.exists(speaker_to_voice_type_path):
         with open(speaker_to_voice_type_path, 'r', encoding='utf-8') as f:
@@ -113,9 +138,10 @@ def tts(text, output_path, speaker_wav, voice_type=None):
             request_json["request"]["text"] = text
             request_json["request"]["reqid"] = str(uuid.uuid4())
             resp = requests.post(api_url, json.dumps(request_json), headers=header, timeout=60)
+            resp_json = resp.json()
             # print(f"resp body: \n{resp.json()}")
-            if "data" in resp.json():
-                data = resp.json()["data"]
+            if "data" in resp_json:
+                data = resp_json["data"]
                 with open(output_path, "wb") as f:
                     f.write(base64.b64decode(data))
                 # file_to_save = open(output_path, "wb")
@@ -125,11 +151,25 @@ def tts(text, output_path, speaker_wav, voice_type=None):
                 wav, sample_rate = librosa.load(output_path, sr=24000)
                 logger.info(f'火山TTS {text} 保存成功: {output_path}')
                 time.sleep(0.1)
-                break
+                return  # Success - exit function
+            else:
+                logger.warning(f"Bytedance TTS API returned no data: {resp_json}")
         except Exception as e:
-            logger.warning(e)
+            logger.error(f"Bytedance TTS failed: {e}")
+        
+        # Sleep between retries
+        if retry < 2:
+            time.sleep(1)
+    
+    # Check if file was created
+    if not os.path.exists(output_path):
+        raise RuntimeError(f"Bytedance TTS failed to generate audio after 3 retries: no output file created")
 
 def get_available_speakers():
+    if not _init_pyannote():
+        logger.warning("pyannote not available, skipping speaker download")
+        return
+        return
     if not os.path.exists('voice_type'):
         os.makedirs('voice_type')
     voice_types = ['BV001_streaming', 'BV002_streaming', 'BV005_streaming', 'BV007_streaming', 'BV033_streaming', 'BV034_streaming', 'BV056_streaming', 'BV102_streaming', 'BV113_streaming', 'BV115_streaming', 'BV119_streaming', 'BV700_streaming', 'BV701_streaming']

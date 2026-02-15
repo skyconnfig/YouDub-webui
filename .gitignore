@@ -168,3 +168,21 @@ download_list.txt
 get_upload_link.txt
 launch.json
 remove_mp4.py
+
+# Cookie files (sensitive)
+cookies.txt
+yooutubecook.txt
+bilibili_cookies.txt
+*.cookies
+
+# System files
+.sisyphus/
+nul
+
+# Runtime files
+run_with_deno.bat
+
+# Tools and scripts cache
+tools/__pycache__/
+scripts/__pycache__/
+docs/__pycache__/

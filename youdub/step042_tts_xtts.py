@@ -1,10 +1,17 @@
 import os
-from TTS.api import TTS
 from loguru import logger
 import numpy as np
 import torch
 import time
 from .utils import save_wav
+
+# Lazy import TTS to avoid dependency issues at startup
+TTS = None
+try:
+    from TTS.api import TTS
+except ImportError as e:
+    logger.warning(f"TTS not available: {e}")
+
 model = None
 
 def init_TTS():
@@ -14,7 +21,10 @@ def load_model(model_path="tts_models/multilingual/multi-dataset/xtts_v2", devic
     global model
     if model is not None:
         return
-
+    
+    if TTS is None:
+        raise RuntimeError("TTS not available. Please install: pip install TTS")
+    
     if device=='auto':
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logger.info(f'Loading TTS model from {model_path}')
@@ -34,16 +44,22 @@ def tts(text, output_path, speaker_wav, model_name="tts_models/multilingual/mult
     if model is None:
         load_model(model_name, device)
     
+    last_error = None
     for retry in range(3):
         try:
             wav = model.tts(text, speaker_wav=speaker_wav, language=language)
             wav = np.array(wav)
             save_wav(wav, output_path)
             logger.info(f'TTS {text}')
-            break
+            return  # Success - exit function
         except Exception as e:
-            logger.warning(f'TTS {text} 失败')
-            logger.warning(e)
+            last_error = e
+            logger.warning(f'TTS {text} 失败 (retry {retry + 1}/3): {e}')
+            if retry < 2:
+                time.sleep(1)  # Sleep between retries
+    
+    # All retries failed - raise error
+    raise RuntimeError(f"XTTS failed after 3 retries: {last_error}")
 
 
 if __name__ == '__main__':

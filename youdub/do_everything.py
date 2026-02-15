@@ -20,6 +20,13 @@ def process_video(info, root_folder, resolution, demucs_model, device, shifts, w
     # only work during 21:00-8:00
     local_time = time.localtime()
     
+    # Handle None info (e.g., when video info extraction fails)
+    if info is None:
+        logger.warning('Video info is None, skipping video')
+        return False
+    
+    video_title = info.get('title', info.get('id', 'unknown'))
+    
     # while local_time.tm_hour >= 8 and local_time.tm_hour < 21:
     #     logger.info(f'Sleep because it is too early')
     #     time.sleep(600)
@@ -29,7 +36,7 @@ def process_video(info, root_folder, resolution, demucs_model, device, shifts, w
         try:
             folder = get_target_folder(info, root_folder)
             if folder is None:
-                logger.warning(f'Failed to get target folder for video {info["title"]}')
+                logger.warning(f'Failed to get target folder for video {video_title}')
                 return False
             
             if os.path.exists(os.path.join(folder, 'bilibili.json')):
@@ -41,7 +48,7 @@ def process_video(info, root_folder, resolution, demucs_model, device, shifts, w
                 
             folder = download_single_video(info, root_folder, resolution)
             if folder is None:
-                logger.warning(f'Failed to download video {info["title"]}')
+                logger.warning(f'Failed to download video {video_title}')
                 return True
             # if os.path.exists(folder, 'video.mp4') and os.path.exists(folder, 'video.txt') and os.path.exists(folder, 'video.png'):
             # if os.path.exists(os.path.join(folder, 'video.mp4')) and os.path.exists(os.path.join(folder, 'video.txt')) and os.path.exists(os.path.join(folder, 'video.png')):
@@ -70,7 +77,7 @@ def process_video(info, root_folder, resolution, demucs_model, device, shifts, w
                 upload_all_videos_under_folder(folder)
             return True
         except Exception as e:
-            logger.error(f'Error processing video {info["title"]}: {e}')
+            logger.error(f'Error processing video {video_title}: {e}')
     return False
 
 
@@ -106,12 +113,24 @@ def do_everything(root_folder, url, num_videos=5, resolution='1080p', demucs_mod
     #             success_list.append(info)
     #         else:
     #             fail_list.append(info)
-    for info in get_info_list_from_url(urls, num_videos):
+    def process_and_track(info):
         success = process_video(info, root_folder, resolution, demucs_model, device, shifts, whisper_model, whisper_download_root, whisper_batch_size,
                                 whisper_diarization, whisper_min_speakers, whisper_max_speakers, translation_target_language, force_bytedance, subtitles, speed_up, fps, target_resolution, max_retries, auto_upload_video)
-        if success:
-            success_list.append(info)
-        else:
-            fail_list.append(info)
+        return (info, success)
+    
+    # Use ThreadPoolExecutor for parallel processing
+    video_infos = list(get_info_list_from_url(urls, num_videos))
+    logger.info(f'Starting parallel processing of {len(video_infos)} videos with {max_workers} workers')
+    
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_info = {executor.submit(process_and_track, info): info for info in video_infos}
+        for future in as_completed(future_to_info):
+            info, success = future.result()
+            if success:
+                success_list.append(info)
+                logger.info(f'Successfully processed: {info.get("title", "unknown")}')
+            else:
+                fail_list.append(info)
+                logger.warning(f'Failed to process: {info.get("title", "unknown")}')
 
     return f'Success: {len(success_list)}\nFail: {len(fail_list)}'

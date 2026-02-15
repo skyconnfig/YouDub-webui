@@ -70,7 +70,7 @@ git clone https://github.com/liuzhao1225/YouDub-webui.git
 您可以选择自动安装或手动安装依赖：
 
 #### 自动安装
-- 进入 `YouDub-webui` 目录，运行 `setup_windows` 脚本。
+- 进入 `YouDub-webui` 目录，运行 `scripts/setup_windows.bat` 脚本。
 - 脚本会在当前目录创建一个 `venv` 虚拟环境，并自动安装所需依赖，包括 CUDA 12.1 版本的 PyTorch。
 
 #### 手动安装
@@ -101,13 +101,52 @@ git clone https://github.com/liuzhao1225/YouDub-webui.git
 选择以下任一方式运行程序：
 
 #### 自动运行
-- 在 `YouDub-webui` 目录下运行 `run_windows.bat`。
+- 在 `YouDub-webui` 目录下运行 `scripts/run_windows.bat`。
 
 #### 手动运行
 - 使用以下命令启动主程序：
   ```bash
   python app.py
   ```
+
+### 模型管理工具
+
+项目提供了模型管理工具，方便你管理AI模型文件：
+
+```bash
+# 查看模型状态
+python tools/manage_models.py info
+
+# 下载Whisper模型
+python tools/manage_models.py download medium
+
+# 迁移系统缓存到本地（节省C盘空间）
+python tools/manage_models.py migrate
+
+# 清理系统缓存
+python tools/manage_models.py clean
+```
+
+或在Windows下使用批处理脚本：
+```bash
+scripts/manage_models.bat
+scripts/verify_models.bat
+```
+
+更多模型管理信息请参考 [docs/MODELS_GUIDE.md](docs/MODELS_GUIDE.md)。
+
+## 项目结构
+
+```
+YouDub-webui/
+├── app.py                 # 主程序入口
+├── youdub/                # 核心功能模块
+├── tools/                 # 工具脚本（模型管理、验证等）
+├── scripts/               # Windows批处理脚本
+├── docs/                  # 文档
+├── models/                # AI模型存放目录
+└── videos/                # 视频输出目录
+```
 
 ## 使用步骤
 

@@ -9,22 +9,46 @@ from loguru import logger
 
 load_dotenv()
 
-# 支持 Groq 配置
+# 配置翻译后端: "ollama", "groq", 或 "openai"
+TRANSLATION_BACKEND = os.getenv('TRANSLATION_BACKEND', 'ollama').lower()
+
+# Ollama 配置
+OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'qwen2.5:7b')
+OLLAMA_BASE_URL = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
+
+# Groq 配置
 if os.getenv('GROQ_API_KEY'):
     model_name = os.getenv('GROQ_MODEL', 'llama-3.3-70b-versatile')
     print(f'using Groq model {model_name}')
 else:
     model_name = os.getenv('MODEL_NAME', 'gpt-3.5-turbo')
     print(f'using model {model_name}')
+
+print(f'Using translation backend: {TRANSLATION_BACKEND}')
+if TRANSLATION_BACKEND == 'ollama':
+    print(f'Using Ollama model: {OLLAMA_MODEL}')
+
+# NOTE: repetition_penalty is not supported by all API providers
+# Only include it for specific models that support it
 if model_name == "01ai/Yi-34B-Chat-4bits":
     extra_body = {
-        'repetition_penalty': 1.1,
         'stop_token_ids': [7]
     }
 else:
-    extra_body = {
-        'repetition_penalty': 1.1,
-    }
+    extra_body = {}
+
+# Ollama 客户端 (延迟初始化)
+_ollama_client = None
+
+def get_ollama_client():
+    """获取 Ollama 客户端"""
+    global _ollama_client
+    if _ollama_client is None:
+        _ollama_client = OpenAI(
+            base_url=f'{OLLAMA_BASE_URL}/v1',
+            api_key='ollama'  # Ollama 不需要真实 key
+        )
+    return _ollama_client
 def get_necessary_info(info: dict):
     return {
         'title': info['title'],
@@ -41,17 +65,25 @@ def ensure_transcript_length(transcript, max_length=4000):
     before, after = transcript[:mid], transcript[mid:]
     length = max_length//2
     return before[:length] + after[-length:]
-def get_openai_client():
-    """获取 OpenAI 客户端，支持 Groq 配置"""
-    if os.getenv('GROQ_API_KEY'):
+def get_translation_client():
+    """获取翻译用的客户端"""
+    if TRANSLATION_BACKEND == 'ollama':
+        return get_ollama_client()
+    elif os.getenv('GROQ_API_KEY'):
         return OpenAI(
             base_url='https://api.groq.com/openai/v1',
             api_key=os.getenv('GROQ_API_KEY')
         )
-    return OpenAI(
-        base_url=os.getenv('OPENAI_API_BASE', 'https://api.openai.com/v1'),
-        api_key=os.getenv('OPENAI_API_KEY')
-    )
+    else:
+        return OpenAI(
+            base_url=os.getenv('OPENAI_API_BASE', 'https://api.openai.com/v1'),
+            api_key=os.getenv('OPENAI_API_KEY')
+        )
+
+# 兼容旧函数名
+def get_openai_client():
+    """获取 OpenAI 客户端，支持 Groq/Ollama 配置"""
+    return get_translation_client()
 
 def summarize(info, transcript, target_language='简体中文'):
     client = get_openai_client()
@@ -69,14 +101,16 @@ def summarize(info, transcript, target_language='简体中文'):
     ]
     retry_message=''
     success = False
+    # 选择正确的模型
+    current_model = OLLAMA_MODEL if TRANSLATION_BACKEND == 'ollama' else model_name
     for retry in range(5):
         try:
             messages = [
-                {'role': 'system', 'content': f'You are a expert in the field of this video. Please summarize the video in JSON format.\n```json\n{{"title": "the title of the video", "summary", "the summary of the video"}}\n```'},
+                {'role': 'system', 'content': 'You are a expert in the field of this video. Please summarize the video in JSON format. ```json {"title": "the title of the video", "summary": "the summary of the video"} ```'},
                 {'role': 'user', 'content': full_description+retry_message},
             ]
             response = client.chat.completions.create(
-                model=model_name,
+                model=current_model,
                 messages=messages,
                 timeout=240,
                 extra_body=extra_body
@@ -114,7 +148,7 @@ def summarize(info, transcript, target_language='简体中文'):
     while True:
         try:
             response = client.chat.completions.create(
-                model=model_name,
+                model=current_model,
                 messages=messages,
                 timeout=240,
                 extra_body=extra_body
@@ -157,6 +191,25 @@ def valid_translation(text, translation):
         translation = translation[3:-3]
         return True, translation_postprocess(translation)
     
+    if (translation.startswith('"') and translation.endswith('"')):
+        translation = translation[1:-1]
+        return True, translation_postprocess(translation)
+    
+    # Handle Ollama format: 翻译："..." or 翻译："..."
+    if translation.startswith('翻译：') or translation.startswith('翻译:'):
+        # Extract content after 翻译： or 翻译:
+        translation = translation[3:].strip()
+        # Remove surrounding quotes if present
+        if (translation.startswith('"') and translation.endswith('"')) or \
+           (translation.startswith('"') and translation.endswith('"')) or \
+           (translation.startswith('"') and translation.endswith('"')):
+            translation = translation[1:-1]
+        return True, translation_postprocess(translation)
+    
+    if '翻译' in translation and '："' in translation and '"' in translation:
+        translation = translation.split('："')[-1].split('"')[0]
+        return True, translation_postprocess(translation)
+    
     if (translation.startswith('“') and translation.endswith('”')) or (translation.startswith('"') and translation.endswith('"')):
         translation = translation[1:-1]
         return True, translation_postprocess(translation)
@@ -179,11 +232,10 @@ def valid_translation(text, translation):
     elif len(translation) > len(text)*0.75:
         return False, f'The translation is too long. Only translate the following sentence and give me the result.'
     
-    forbidden = ['翻译', '这句', '\n', '简体中文', '中文', 'translate', 'Translate', 'translation', 'Translation']
+    forbidden = ['这句', '\n', '简体中文', '中文', 'translate', 'Translate', 'translation', 'Translation']
     translation = translation.strip()
     for word in forbidden:
         if word in translation:
-            
             return False, f"Don't include `{word}` in the translation. Only translate the following sentence and give me the result."
     
     return True, translation_postprocess(translation)
@@ -264,15 +316,17 @@ def split_sentences(translation):
     return output_data
     
 def _translate(summary, transcript, target_language='简体中文'):
-    client = get_openai_client()
+    client = get_translation_client()
     info = f'This is a video called "{summary["title"]}". {summary["summary"]}.'
     full_translation = []
+    # 选择正确的模型
+    current_model = OLLAMA_MODEL if TRANSLATION_BACKEND == 'ollama' else model_name
     fixed_message = [
-        {'role': 'system', 'content': f'You are a expert in the field of this video.\n{info}\nTranslate the sentence into {target_language}.下面我让你来充当翻译家，你的目标是把任何语言翻译成中文，请翻译时不要带翻译腔，而是要翻译得自然、流畅和地道，使用优美和高雅的表达方式。请将人工智能的“agent”翻译为“智能体”，强化学习中是`Q-Learning`而不是`Queue Learning`。数学公式写成plain text，不要使用latex。确保翻译正确和简洁。注意信达雅。'},
+        {'role': 'system', 'content': f'You are a expert in the field of this video.\n{info}\nTranslate the sentence into {target_language}.下面我让你来充当翻译家，你的目标是把任何语言翻译成中文，请翻译时不要带翻译腔，而是要翻译得自然、流畅和地道，使用优美和高雅的表达方式。请将人工智能的"agent"翻译为"智能体"，强化学习中是`Q-Learning`而不是`Queue Learning`。数学公式写成plain text，不要使用latex。确保翻译正确和简洁。注意信达雅。'},
         {'role': 'user', 'content': '使用地道的中文Translate:"Knowledge is power."'},
-        {'role': 'assistant', 'content': '翻译：“知识就是力量。”'},
+        {'role': 'assistant', 'content': '翻译："知识就是力量。"'},
         {'role': 'user', 'content': '使用地道的中文Translate:"To be or not to be, that is the question."'},
-        {'role': 'assistant', 'content': '翻译：“生存还是毁灭，这是一个值得考虑的问题。”'},]
+        {'role': 'assistant', 'content': '翻译："生存还是毁灭，这是一个值得考虑的问题。"'},]
     
     history = []
     for line in transcript:
@@ -287,7 +341,7 @@ def _translate(summary, transcript, target_language='简体中文'):
             
             try:
                 response = client.chat.completions.create(
-                    model=model_name,
+                    model=current_model,
                     messages=messages,
                     timeout=240,
                     extra_body=extra_body

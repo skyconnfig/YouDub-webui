@@ -1,3 +1,41 @@
+import os
+from dotenv import load_dotenv
+
+# 设置 HuggingFace 镜像站 (解决网络问题)
+load_dotenv()
+hf_endpoint = os.getenv('HF_ENDPOINT')
+if hf_endpoint:
+    os.environ['HF_ENDPOINT'] = hf_endpoint
+    os.environ['HF_HUB_ENDPOINT'] = hf_endpoint
+    print(f"Using HuggingFace mirror: {hf_endpoint}")
+
+# 设置模型下载目录为项目本地目录 (避免重复下载)
+project_root = os.path.dirname(os.path.abspath(__file__))
+
+# 设置 Torch Hub 目录（Demucs 模型）
+torch_home = os.path.join(project_root, 'models', 'torch_hub')
+os.environ['TORCH_HOME'] = torch_home
+
+# 设置 TTS 目录
+tts_home = os.path.join(project_root, 'models', 'TTS')
+os.environ['TTS_HOME'] = tts_home
+
+# 设置 HuggingFace 缓存目录（WhisperX 对齐模型、pyannote 模型等）
+hf_cache_dir = os.path.join(project_root, 'models', 'hf_cache')
+os.environ['HF_HOME'] = hf_cache_dir
+os.environ['HUGGINGFACE_HUB_CACHE'] = os.path.join(hf_cache_dir, 'hub')
+os.environ['TRANSFORMERS_CACHE'] = os.path.join(hf_cache_dir, 'transformers')
+
+# 检查本地已有的 Demucs 模型
+demucs_dir = os.path.join(project_root, 'models', 'Demucs')
+if os.path.exists(demucs_dir) and any(f.endswith('.th') for f in os.listdir(demucs_dir)):
+    print(f"[OK] Found local Demucs models: {demucs_dir}")
+else:
+    print(f"[INFO] Demucs models will be downloaded to: {torch_home}")
+
+print(f"TTS models will be saved to: {tts_home}")
+print(f"HF models will be saved to: {hf_cache_dir}")
+
 import gradio as gr
 from youdub.step000_video_downloader import download_from_url
 from youdub.step010_demucs_vr import separate_all_audio_under_folder
@@ -25,24 +63,23 @@ do_everything_interface = gr.Interface(
         gr.Radio(['large', 'medium', 'small', 'base', 'tiny'], label='Whisper Model', value='large'),
         gr.Textbox(label='Whisper Download Root', value='models/ASR/whisper'),
         gr.Slider(minimum=1, maximum=128, step=1, label='Whisper Batch Size', value=32),
-        gr.Checkbox(label='Whisper Diarization', value=True),
+        gr.Checkbox(label='Whisper Diarization', value=False),
         gr.Radio([None, 1, 2, 3, 4, 5, 6, 7, 8, 9],
                  label='Whisper Min Speakers', value=None),
         gr.Radio([None, 1, 2, 3, 4, 5, 6, 7, 8, 9],
                  label='Whisper Max Speakers', value=None),
         gr.Dropdown(['简体中文', '繁体中文', 'English', 'Deutsch', 'Français', 'русский'],
                     label='Translation Target Language', value='简体中文'),
-        gr.Checkbox(label='Force Bytedance', value=True),
+        gr.Checkbox(label='Force Bytedance', value=False),
         gr.Checkbox(label='Subtitles', value=True),
         gr.Slider(minimum=0.5, maximum=2, step=0.05, label='Speed Up', value=1.05),
         gr.Slider(minimum=1, maximum=60, step=1, label='FPS', value=30),
         gr.Radio(['4320p', '2160p', '1440p', '1080p', '720p', '480p', '360p', '240p', '144p'], label='Resolution', value='1080p'),
-        gr.Slider(minimum=1, maximum=100, step=1, label='Max Workers', value=1),
+        gr.Slider(minimum=1, maximum=5, step=1, label='Max Workers (并行处理视频数)', value=1),
         gr.Slider(minimum=1, maximum=10, step=1, label='Max Retries', value=3),
         gr.Checkbox(label='Auto Upload Video', value=True),
     ],
     outputs='text',
-    allow_flagging='never',
 )
     
 youtube_interface = gr.Interface(
@@ -55,7 +92,6 @@ youtube_interface = gr.Interface(
         gr.Slider(minimum=1, maximum=100, step=1, label='Number of videos to download', value=5),
     ],
     outputs='text',
-    allow_flagging='never',
 )
 
 demucs_interface = gr.Interface(
@@ -68,7 +104,6 @@ demucs_interface = gr.Interface(
         gr.Slider(minimum=0, maximum=10, step=1, label='Number of shifts', value=5),
     ],
     outputs='text',
-    allow_flagging='never',
 )
 
 # transcribe_all_audio_under_folder(folder, model_name: str = 'large', download_root='models/ASR/whisper', device='auto', batch_size=32)
@@ -80,14 +115,13 @@ whisper_inference = gr.Interface(
         gr.Textbox(label='Download Root', value='models/ASR/whisper'),
         gr.Radio(['auto', 'cuda', 'cpu'], label='Device', value='auto'),
         gr.Slider(minimum=1, maximum=128, step=1, label='Batch Size', value=32),
-        gr.Checkbox(label='Diarization', value=True),
+        gr.Checkbox(label='Diarization', value=False),
         gr.Radio([None, 1, 2, 3, 4, 5, 6, 7, 8, 9],
                  label='Whisper Min Speakers', value=None),
         gr.Radio([None, 1, 2, 3, 4, 5, 6, 7, 8, 9],
                  label='Whisper Max Speakers', value=None),
     ],
     outputs='text',
-    allow_flagging='never',
 )
 
 translation_interface = gr.Interface(
@@ -107,7 +141,6 @@ tts_interafce = gr.Interface(
         gr.Checkbox(label='Force Bytedance', value=False),
     ],
     outputs='text',
-    allow_flagging='never',
 )
 syntehsize_video_interface = gr.Interface(
     fn=synthesize_all_video_under_folder,
@@ -119,7 +152,6 @@ syntehsize_video_interface = gr.Interface(
         gr.Radio(['4320p', '2160p', '1440p', '1080p', '720p', '480p', '360p', '240p', '144p'], label='Resolution', value='1080p'),
     ],
     outputs='text',
-    allow_flagging='never',
 )
 
 genearte_info_interface = gr.Interface(
@@ -128,7 +160,6 @@ genearte_info_interface = gr.Interface(
         gr.Textbox(label='Folder', value='videos'),  # Changed 'default' to 'value'
     ],
     outputs='text',
-    allow_flagging='never',
 )
 
 upload_bilibili_interface = gr.Interface(
@@ -137,7 +168,6 @@ upload_bilibili_interface = gr.Interface(
         gr.Textbox(label='Folder', value='videos'),  # Changed 'default' to 'value'
     ],
     outputs='text',
-    allow_flagging='never',
 )
 
 app = gr.TabbedInterface(

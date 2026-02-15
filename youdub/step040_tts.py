@@ -7,10 +7,27 @@ from loguru import logger
 import numpy as np
 
 from .utils import save_wav, save_wav_norm
-from .step041_tts_bytedance import tts as bytedance_tts
-from .step042_tts_xtts import tts as xtts_tts
 from .cn_tx import TextNorm
 from audiostretchy.stretch import stretch_audio
+
+# Lazy imports to avoid dependency issues
+bytedance_tts = None
+xtts_tts = None
+
+def _get_bytedance_tts():
+    global bytedance_tts
+    if bytedance_tts is None:
+        from .step041_tts_bytedance import tts as bytedance_tts_func
+        bytedance_tts = bytedance_tts_func
+    return bytedance_tts
+
+def _get_xtts_tts():
+    global xtts_tts
+    if xtts_tts is None:
+        from .step042_tts_xtts import tts as xtts_tts_func
+        xtts_tts = xtts_tts_func
+    return xtts_tts
+
 normalizer = TextNorm()
 def preprocess_text(text):
     text = text.replace('AI', '人工智能')
@@ -52,12 +69,16 @@ def generate_wavs(folder, force_bytedance=False):
         text = preprocess_text(line['translation'])
         output_path = os.path.join(output_folder, f'{str(i).zfill(4)}.wav')
         speaker_wav = os.path.join(folder, 'SPEAKER', f'{speaker}.wav')
-        if num_speakers == 1:
-            bytedance_tts(text, output_path, speaker_wav, voice_type='BV701_streaming')
-        elif force_bytedance:
-            bytedance_tts(text, output_path, speaker_wav)
+        
+        # Use lazy getters to avoid import issues
+        _bytedance = _get_bytedance_tts()
+        _xtts = _get_xtts_tts()
+        
+        # Use XTTS (local model) by default, unless force_bytedance=True
+        if force_bytedance:
+            _bytedance(text, output_path, speaker_wav, voice_type='BV701_streaming')
         else:
-            xtts_tts(text, output_path, speaker_wav)
+            _xtts(text, output_path, speaker_wav)
         start = line['start']
         end = line['end']
         length = end-start
