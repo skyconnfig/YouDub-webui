@@ -95,19 +95,94 @@ git clone https://github.com/liuzhao1225/YouDub-webui.git
   - `HF_TOKEN`: Hugging Face token，用于 speaker diarization 功能。
   - `HF_ENDPOINT`: 如果从 `huggingface` 下载模型时出错，可以添加此环境变量。
   - `APPID` 和 `ACCESS_TOKEN`: 火山引擎 TTS 所需的凭据。
-  - `BILI_BASE64`: Bilibili API 所需的凭据。获取方法请参考 [bilibili-toolman 准备凭据](https://github.com/mos9527/bilibili-toolman?tab=readme-ov-file#%E5%87%86%E5%A4%87%E5%87%AD%E6%8D%AE)。
+  - `BILI_SESSDATA` 和 `BILI_BILI_JCT`: Bilibili 上传所需的凭据（见下方详细说明）。
+  - `BILI_BASE64`: Bilibili API 所需的凭据（用于 cookie 认证）。获取方法请参考 [bilibili-toolman 准备凭据](https://github.com/mos9527/bilibili-toolman?tab=readme-ov-file#%E5%87%86%E5%A4%87%E5%87%AD%E6%8D%AE)。
 
 ### 4. 运行程序
-选择以下任一方式运行程序：
 
-#### 自动运行
-- 在 `YouDub-webui` 目录下运行 `scripts/run_windows.bat`。
+#### Windows 系统
 
-#### 手动运行
-- 使用以下命令启动主程序：
-  ```bash
-  python app.py
-  ```
+在 Windows 系统下，我们提供了多种启动方式：
+
+##### 方式一：智能启动脚本（推荐）
+```bash
+scripts\start.bat
+```
+此脚本会自动：
+- 检查并安装 Deno（如未安装）
+- 配置环境变量
+- 检查 cookies.txt 文件
+- 启动应用程序
+
+##### 方式二：快速启动（已安装环境后）
+```bash
+scripts\run_windows.bat
+```
+此脚本会：
+- 自动激活虚拟环境
+- 启动应用程序
+
+##### 方式三：手动运行
+```bash
+# 激活虚拟环境
+venv\Scripts\activate
+
+# 启动程序
+python app.py
+```
+
+#### Linux/macOS 系统
+
+```bash
+# 激活虚拟环境
+source venv/bin/activate
+
+# 启动程序
+python app.py
+```
+
+启动成功后，在浏览器中访问 `http://localhost:7860` 即可使用 Web 界面。
+
+---
+
+## 📱 Bilibili 上传配置
+
+### 获取 SESSDATA 和 BILI_JCT
+
+1. 登录 Bilibili 网页版 (https://www.bilibili.com)
+2. 按 `F12` 打开浏览器开发者工具
+3. 切换到 `Application` (应用) 或 `Storage` (存储) 标签
+4. 在左侧找到 `Cookies` → `https://www.bilibili.com`
+5. 找到以下 cookie 并复制其值：
+   - `SESSDATA`
+   - `bili_jct`
+
+### 配置环境变量
+
+在 `.env` 文件中添加：
+```env
+BILI_SESSDATA=你的SESSDATA值
+BILI_BILI_JCT=你的bili_jct值
+```
+
+### 视频自动上传
+
+程序支持两种上传模式：
+
+1. **全自动模式**: 在 "Do Everything" 界面中，勾选 `Auto Upload Video`
+2. **手动上传**: 处理完成后，点击 "上传B站" 标签页进行上传
+
+上传时会自动添加以下信息：
+- 标题: `【中配】{原标题} - {作者}`
+- 简介: 包含原视频链接、项目地址和简介
+- 标签: YouDub、AI、ChatGPT、中文配音等
+- 分区: 科普
+
+### 注意事项
+
+- 首次上传可能需要较长时间建立会话
+- 如果上传失败会自动重试 5 次
+- 可以在 `bilibili.json` 文件中查看上传结果
 
 ### 模型管理工具
 
@@ -134,6 +209,27 @@ scripts/verify_models.bat
 ```
 
 更多模型管理信息请参考 [docs/MODELS_GUIDE.md](docs/MODELS_GUIDE.md)。
+
+---
+
+## 💻 笔记本电脑优化配置
+
+如果你的显存有限（如 8GB），可以使用以下优化配置来提升性能：
+
+| 参数 | 推荐值 | 说明 |
+|------|--------|------|
+| Resolution | 720p | 降低分辨率可大幅减少显存占用 |
+| Demucs Model | htdemucs | 比 htdemucs_ft 快约 2 倍 |
+| Number of shifts | 0 | 关闭偏移以提升速度 |
+| Whisper Model | small | 比 large 快约 4 倍 |
+| Whisper Batch Size | 8 | 显存不足时降低此值 |
+| Whisper Diarization | False | 关闭说话人分离可节省显存 |
+| Max Workers | 1 | 避免并行处理导致显存不足 |
+| Force Bytedance | True | 使用火山引擎 TTS 比本地 XTTS 快 3-5 倍 |
+
+详细配置说明请参考 [docs/OPTIMIZATION_GUIDE.md](docs/OPTIMIZATION_GUIDE.md)。
+
+---
 
 ## 项目结构
 
