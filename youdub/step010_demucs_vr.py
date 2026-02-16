@@ -233,22 +233,25 @@ def extract_audio_from_video(folder: str) -> bool:
     
     logger.info(f'Extracting audio from {video_path}')
     
-    # 使用绝对路径，确保路径正确处理
-    cmd = f'"{ffmpeg_path}" -loglevel error -i "{video_path}" -vn -acodec pcm_s16le -ar 44100 -ac 2 "{audio_path}"'
-    logger.info(f"执行命令: {cmd}")
-    result = os.system(cmd)
+    # 使用 subprocess.run 代替 os.system，避免 Windows 路径问题
+    import subprocess
+    cmd = [
+        ffmpeg_path,
+        '-loglevel', 'error',
+        '-i', video_path,
+        '-vn',
+        '-acodec', 'pcm_s16le',
+        '-ar', '44100',
+        '-ac', '2',
+        audio_path
+    ]
+    logger.info(f"执行命令: {' '.join(cmd)}")
+    result = subprocess.run(cmd, capture_output=True, text=True)
     
-    if result != 0:
-        # 尝试获取更详细的错误信息
-        try:
-            test_cmd = f'"{ffmpeg_path}" -version'
-            test_result = os.system(test_cmd)
-            if test_result != 0:
-                raise Exception(f"ffmpeg 无法执行，请检查路径是否正确: {ffmpeg_path}")
-        except Exception as e:
-            logger.error(f"测试 ffmpeg 失败: {e}")
-        
-        raise Exception(f"ffmpeg 音频提取失败，请检查视频文件是否损坏: {video_path}")
+    if result.returncode != 0:
+        error_msg = result.stderr or "未知错误"
+        logger.error(f"ffmpeg 执行失败: {error_msg}")
+        raise Exception(f"ffmpeg 音频提取失败: {error_msg}")
     
     # 验证音频文件是否成功创建
     if not os.path.exists(audio_path):
@@ -256,8 +259,8 @@ def extract_audio_from_video(folder: str) -> bool:
     
     logger.info(f'Audio extracted from {folder}')
     return True
-    return True
-    
+
+
 def separate_all_audio_under_folder(root_folder: str, model_name: str = "htdemucs_ft", device: str = 'auto', progress: bool = True, shifts: int = 5) -> None:
     global separator
     for subdir, dirs, files in os.walk(root_folder):
