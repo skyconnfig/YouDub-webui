@@ -70,7 +70,7 @@ do_everything_interface = gr.Interface(
                  label='Whisper Max Speakers', value=None),
         gr.Dropdown(['简体中文', '繁体中文', 'English', 'Deutsch', 'Français', 'русский'],
                     label='Translation Target Language', value='简体中文'),
-        gr.Checkbox(label='Force Bytedance', value=True),
+        gr.Checkbox(label='Force Bytedance', value=False),
         gr.Checkbox(label='Subtitles', value=True),
         gr.Slider(minimum=0.5, maximum=2, step=0.05, label='Speed Up', value=1.05),
         gr.Slider(minimum=1, maximum=60, step=1, label='FPS', value=30),
@@ -138,7 +138,7 @@ tts_interafce = gr.Interface(
     fn=generate_all_wavs_under_folder,
     inputs = [
         gr.Textbox(label='Folder', value='videos'),  # Changed 'default' to 'value'
-        gr.Checkbox(label='Force Bytedance', value=True),
+        gr.Checkbox(label='Force Bytedance', value=False),
     ],
     outputs='text',
 )
