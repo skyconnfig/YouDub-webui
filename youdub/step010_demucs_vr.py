@@ -220,14 +220,20 @@ def extract_audio_from_video(folder: str) -> bool:
     
     logger.info(f"找到视频文件: {video_path}")
     
+    # 转换为绝对路径，确保路径正确处理
+    video_path = os.path.abspath(video_path)
+    logger.info(f"绝对路径: {video_path}")
+    
     audio_path = os.path.join(folder, 'audio.wav')
+    audio_path = os.path.abspath(audio_path)
+    
     if os.path.exists(audio_path):
         logger.info(f'Audio already extracted in {folder}')
         return True
     
     logger.info(f'Extracting audio from {video_path}')
     
-    # 使用找到的 ffmpeg 路径
+    # 使用绝对路径，确保路径正确处理
     cmd = f'"{ffmpeg_path}" -loglevel error -i "{video_path}" -vn -acodec pcm_s16le -ar 44100 -ac 2 "{audio_path}"'
     logger.info(f"执行命令: {cmd}")
     result = os.system(cmd)
