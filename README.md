@@ -7,10 +7,11 @@
   - [主要特点](#主要特点)
   - [安装与使用指南](#安装与使用指南)
     - [1. 克隆仓库](#1-克隆仓库)
-    - [2. 安装依赖](#2-安装依赖)
+    - [2. 安装系统依赖](#2-安装系统依赖)
+    - [3. 安装 Python 依赖](#3-安装-python-依赖)
       - [自动安装](#自动安装)
       - [手动安装](#手动安装)
-    - [3. 环境设置](#3-环境设置)
+    - [4. 环境设置](#4-环境设置)
     - [4. 运行程序](#4-运行程序)
       - [自动运行](#自动运行)
       - [手动运行](#手动运行)
@@ -66,7 +67,31 @@
 git clone https://github.com/liuzhao1225/YouDub-webui.git
 ```
 
-### 2. 安装依赖
+### 2. 安装系统依赖
+
+#### Windows 系统
+
+**ffmpeg（必需）**
+
+ffmpeg 是处理音视频的必要工具，请按以下方式安装：
+
+```bash
+# 方法1：使用 winget 安装（推荐）
+winget install Gyan.FFmpeg
+
+# 方法2：手动安装
+# 1. 访问 https://github.com/BtbN/FFmpeg-Builds/releases
+# 2. 下载 ffmpeg-master-latest-win64-gpl.zip
+# 3. 解压到 C:\ffmpeg
+# 4. 将 C:\ffmpeg\bin 添加到系统 PATH 环境变量
+```
+
+**验证安装：**
+```bash
+ffmpeg -version
+```
+
+### 3. 安装 Python 依赖
 您可以选择自动安装或手动安装依赖：
 
 #### 自动安装
@@ -85,7 +110,7 @@ git clone https://github.com/liuzhao1225/YouDub-webui.git
   ```
 - 默认安装为 CPU 版本的 PyTorch 如果你需要手动安装特定 CUDA 版本的 PyTorch，可根据您的 CUDA 版本从 [PyTorch 官方网站](https://pytorch.org/) 获取安装命令。
 
-### 3. 环境设置
+### 4. 环境设置
 在运行前，请配置环境变量：
 
 - **环境变量配置**：将 `.env.example` 改名为 `.env` 并填入以下环境变量：
@@ -98,7 +123,7 @@ git clone https://github.com/liuzhao1225/YouDub-webui.git
   - `BILI_SESSDATA` 和 `BILI_BILI_JCT`: Bilibili 上传所需的凭据（见下方详细说明）。
   - `BILI_BASE64`: Bilibili API 所需的凭据（用于 cookie 认证）。获取方法请参考 [bilibili-toolman 准备凭据](https://github.com/mos9527/bilibili-toolman?tab=readme-ov-file#%E5%87%86%E5%A4%87%E5%87%AD%E6%8D%AE)。
 
-### 4. 运行程序
+### 5. 运行程序
 
 #### Windows 系统
 
