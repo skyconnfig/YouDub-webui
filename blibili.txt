@@ -1,0 +1,25 @@
+# Netscape HTTP Cookie File
+# https://curl.haxx.se/rfc/cookie_spec.html
+# This is a generated file! Do not edit.
+
+.bilibili.com	TRUE	/	FALSE	1802480716	buvid3	23F195A4-C433-8D03-966D-3A37CB79803E17730infoc
+.bilibili.com	TRUE	/	FALSE	1802480716	b_nut	1770944717
+.bilibili.com	TRUE	/	FALSE	1802480716	_uuid	32B843510-4886-105410-6109D-3CAF4E8CC9F216182infoc
+.bilibili.com	TRUE	/	FALSE	1805504717	buvid_fp	59dc39ddf164164bdf91d7b6973862d4
+.bilibili.com	TRUE	/	FALSE	1802480717	home_feed_column	4
+.bilibili.com	TRUE	/	FALSE	1802480717	browser_resolution	1247-798
+.bilibili.com	TRUE	/	FALSE	1805758916	buvid4	FC3A27EA-79A7-1C5E-1DAB-55C6D3F4E5F419705-026021309-Ybmtx8P2M5ZfKCYoBWQirA%3D%3D
+.bilibili.com	TRUE	/	TRUE	1786496746	SESSDATA	c9c4aee3%2C1786496747%2Ca01c6%2A22CjAL8Q4LmM5TavHDbkuuKMFoFnJ76uahaiFyQZYDcrfwtf1mboijq4LM0gC7139rQEUSVjBfaDVHeE1fUzYyaFBFWVo1UndvUzRKaWNhSUNySzFvdWZWYmJpWGM3VURPeHVRdTN1U2lvcEdVeXV2SDI4R3lnVDExbWZ2ZU9JMUVpdEM5eWJVSVJRIIEC
+.bilibili.com	TRUE	/	TRUE	1786496746	bili_jct	95913a9ccf686f4b488199178272ddc0
+.bilibili.com	TRUE	/	TRUE	1786496746	DedeUserID	594478778
+.bilibili.com	TRUE	/	TRUE	1786496746	DedeUserID__ckMd5	3d7a201e9c23b51e
+.bilibili.com	TRUE	/	FALSE	1802734881	theme-tip-show	SHOWED
+.bilibili.com	TRUE	/	FALSE	1802480822	theme-avatar-tip-show	SHOWED
+.bilibili.com	TRUE	/	FALSE	1773538416	bp_t_offset_594478778	1168695038289379328
+.bilibili.com	TRUE	/	FALSE	1802482417	hit-dyn-v2	1
+.bilibili.com	TRUE	/	FALSE	1802734879	CURRENT_FNVAL	4048
+.bilibili.com	TRUE	/	FALSE	1805758881	rpdid	|(~mJ~RJl)k0J'u~~uum)))k
+.bilibili.com	TRUE	/	FALSE	1802734891	CURRENT_QUALITY	80
+.bilibili.com	TRUE	/	FALSE	0	b_lsid	A7DE9502_19C66A2436A
+.bilibili.com	TRUE	/	FALSE	1771507636	bili_ticket	eyJhbGciOiJIUzI1NiIsImtpZCI6InMwMyIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NzE1MDc2MzksImlhdCI6MTc3MTI0ODM3OSwicGx0IjotMX0.JMgSvpRlSCS7wrWRlGpIfcc99QubACTADSsyFy-q2uU
+.bilibili.com	TRUE	/	FALSE	1771507636	bili_ticket_expires	1771507579
