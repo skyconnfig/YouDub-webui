@@ -55,14 +55,14 @@ do_everything_interface = gr.Interface(
         gr.Textbox(label='Root Folder', value='videos'),  # Changed 'default' to 'value'
         gr.Textbox(label='Video URL', placeholder='Video or Playlist or Channel URL',
                    value='https://www.bilibili.com/list/1263732318'),  # Changed 'default' to 'value'
-        gr.Slider(minimum=1, maximum=500, step=1, label='Number of videos to download', value=20),
-        gr.Radio(['4320p', '2160p', '1440p', '1080p', '720p', '480p', '360p', '240p', '144p'], label='Resolution', value='1080p'),
-        gr.Radio(['htdemucs', 'htdemucs_ft', 'htdemucs_6s', 'hdemucs_mmi', 'mdx', 'mdx_extra', 'mdx_q', 'mdx_extra_q', 'SIG'], label='Demucs Model', value='htdemucs_ft'),
+        gr.Slider(minimum=1, maximum=500, step=1, label='Number of videos to download', value=5),
+        gr.Radio(['4320p', '2160p', '1440p', '1080p', '720p', '480p', '360p', '240p', '144p'], label='Resolution', value='720p'),
+        gr.Radio(['htdemucs', 'htdemucs_ft', 'htdemucs_6s', 'hdemucs_mmi', 'mdx', 'mdx_extra', 'mdx_q', 'mdx_extra_q', 'SIG'], label='Demucs Model', value='htdemucs'),
         gr.Radio(['auto', 'cuda', 'cpu'], label='Demucs Device', value='auto'),
-        gr.Slider(minimum=0, maximum=10, step=1, label='Number of shifts', value=5),
-        gr.Radio(['large', 'medium', 'small', 'base', 'tiny'], label='Whisper Model', value='large'),
+        gr.Slider(minimum=0, maximum=10, step=1, label='Number of shifts', value=0),
+        gr.Radio(['large', 'medium', 'small', 'base', 'tiny'], label='Whisper Model', value='medium'),
         gr.Textbox(label='Whisper Download Root', value='models/ASR/whisper'),
-        gr.Slider(minimum=1, maximum=128, step=1, label='Whisper Batch Size', value=32),
+        gr.Slider(minimum=1, maximum=128, step=1, label='Whisper Batch Size', value=4),
         gr.Checkbox(label='Whisper Diarization', value=False),
         gr.Radio([None, 1, 2, 3, 4, 5, 6, 7, 8, 9],
                  label='Whisper Min Speakers', value=None),
@@ -70,14 +70,14 @@ do_everything_interface = gr.Interface(
                  label='Whisper Max Speakers', value=None),
         gr.Dropdown(['简体中文', '繁体中文', 'English', 'Deutsch', 'Français', 'русский'],
                     label='Translation Target Language', value='简体中文'),
-        gr.Checkbox(label='Force Bytedance', value=False),
+        gr.Checkbox(label='Force Bytedance', value=True),
         gr.Checkbox(label='Subtitles', value=True),
         gr.Slider(minimum=0.5, maximum=2, step=0.05, label='Speed Up', value=1.05),
         gr.Slider(minimum=1, maximum=60, step=1, label='FPS', value=30),
-        gr.Radio(['4320p', '2160p', '1440p', '1080p', '720p', '480p', '360p', '240p', '144p'], label='Resolution', value='1080p'),
+        gr.Radio(['4320p', '2160p', '1440p', '1080p', '720p', '480p', '360p', '240p', '144p'], label='Resolution', value='720p'),
         gr.Slider(minimum=1, maximum=5, step=1, label='Max Workers (并行处理视频数)', value=1),
         gr.Slider(minimum=1, maximum=10, step=1, label='Max Retries', value=3),
-        gr.Checkbox(label='Auto Upload Video', value=True),
+        gr.Checkbox(label='Auto Upload Video', value=False),
     ],
     outputs='text',
 )
@@ -88,7 +88,7 @@ youtube_interface = gr.Interface(
         gr.Textbox(label='Video URL', placeholder='Video or Playlist or Channel URL',
                    value='https://www.bilibili.com/list/1263732318'),  # Changed 'default' to 'value'
         gr.Textbox(label='Output Folder', value='videos'),  # Changed 'default' to 'value'
-        gr.Radio(['4320p', '2160p', '1440p', '1080p', '720p', '480p', '360p', '240p', '144p'], label='Resolution', value='1080p'),
+        gr.Radio(['4320p', '2160p', '1440p', '1080p', '720p', '480p', '360p', '240p', '144p'], label='Resolution', value='720p'),
         gr.Slider(minimum=1, maximum=100, step=1, label='Number of videos to download', value=5),
     ],
     outputs='text',
@@ -98,10 +98,10 @@ demucs_interface = gr.Interface(
     fn=separate_all_audio_under_folder,
     inputs = [
         gr.Textbox(label='Folder', value='videos'),  # Changed 'default' to 'value'
-        gr.Radio(['htdemucs', 'htdemucs_ft', 'htdemucs_6s', 'hdemucs_mmi', 'mdx', 'mdx_extra', 'mdx_q', 'mdx_extra_q', 'SIG'], label='Model', value='htdemucs_ft'),
+        gr.Radio(['htdemucs', 'htdemucs_ft', 'htdemucs_6s', 'hdemucs_mmi', 'mdx', 'mdx_extra', 'mdx_q', 'mdx_extra_q', 'SIG'], label='Model', value='htdemucs'),
         gr.Radio(['auto', 'cuda', 'cpu'], label='Device', value='auto'),
         gr.Checkbox(label='Progress Bar in Console', value=True),
-        gr.Slider(minimum=0, maximum=10, step=1, label='Number of shifts', value=5),
+        gr.Slider(minimum=0, maximum=10, step=1, label='Number of shifts', value=0),
     ],
     outputs='text',
 )
@@ -111,10 +111,10 @@ whisper_inference = gr.Interface(
     fn = transcribe_all_audio_under_folder,
     inputs = [
         gr.Textbox(label='Folder', value='videos'),  # Changed 'default' to 'value'
-        gr.Radio(['large', 'medium', 'small', 'base', 'tiny'], label='Model', value='large'),
+        gr.Radio(['large', 'medium', 'small', 'base', 'tiny'], label='Model', value='medium'),
         gr.Textbox(label='Download Root', value='models/ASR/whisper'),
         gr.Radio(['auto', 'cuda', 'cpu'], label='Device', value='auto'),
-        gr.Slider(minimum=1, maximum=128, step=1, label='Batch Size', value=32),
+        gr.Slider(minimum=1, maximum=128, step=1, label='Batch Size', value=4),
         gr.Checkbox(label='Diarization', value=False),
         gr.Radio([None, 1, 2, 3, 4, 5, 6, 7, 8, 9],
                  label='Whisper Min Speakers', value=None),
@@ -138,7 +138,7 @@ tts_interafce = gr.Interface(
     fn=generate_all_wavs_under_folder,
     inputs = [
         gr.Textbox(label='Folder', value='videos'),  # Changed 'default' to 'value'
-        gr.Checkbox(label='Force Bytedance', value=False),
+        gr.Checkbox(label='Force Bytedance', value=True),
     ],
     outputs='text',
 )
@@ -149,7 +149,7 @@ syntehsize_video_interface = gr.Interface(
         gr.Checkbox(label='Subtitles', value=True),
         gr.Slider(minimum=0.5, maximum=2, step=0.05, label='Speed Up', value=1.05),
         gr.Slider(minimum=1, maximum=60, step=1, label='FPS', value=30),
-        gr.Radio(['4320p', '2160p', '1440p', '1080p', '720p', '480p', '360p', '240p', '144p'], label='Resolution', value='1080p'),
+        gr.Radio(['4320p', '2160p', '1440p', '1080p', '720p', '480p', '360p', '240p', '144p'], label='Resolution', value='720p'),
     ],
     outputs='text',
 )
@@ -174,6 +174,6 @@ app = gr.TabbedInterface(
     interface_list=[do_everything_interface,youtube_interface, demucs_interface,
                     whisper_inference, translation_interface, tts_interafce, syntehsize_video_interface, upload_bilibili_interface],
     tab_names=['全自动', '下载视频', '人声分离', '语音识别', '字幕翻译', '语音合成', '视频合成', '上传B站'],
-    title='YouDub')
+    title='LXS_Dub')
 if __name__ == '__main__':
     app.launch()

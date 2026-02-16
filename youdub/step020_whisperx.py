@@ -18,8 +18,8 @@ align_model = None
 language_code = None
 align_metadata = None
 
-def init_whisperx():
-    load_whisper_model()
+def init_whisperx(model_name='medium', download_root='models/ASR/whisper', device='auto'):
+    load_whisper_model(model_name, download_root, device)
     load_align_model()
     load_diarize_model()
     

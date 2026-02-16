@@ -30,6 +30,14 @@ def _get_xtts_tts():
 
 normalizer = TextNorm()
 def preprocess_text(text):
+    # 清理文本中的多余引号（中文引号 """ 和英文引号 """）
+    # 使用循环移除所有开头和结尾的引号
+    text = text.strip()
+    while text.startswith('"') or text.startswith('"'):
+        text = text[1:]
+    while text.endswith('"') or text.endswith('"'):
+        text = text[:-1]
+    text = text.strip()
     text = text.replace('AI', '人工智能')
     text = re.sub(r'(?<!^)([A-Z])', r' \1', text)
     text = normalizer(text)

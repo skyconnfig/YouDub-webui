@@ -34,8 +34,21 @@ def load_model(model_path="tts_models/multilingual/multi-dataset/xtts_v2", devic
     logger.info(f'TTS model loaded in {t_end - t_start:.2f}s')
     
 
+def clean_quotes(text: str) -> str:
+    """清理文本中的多余引号，提升观看体验"""
+    # 使用循环移除所有开头和结尾的中文和英文引号
+    text = text.strip()
+    while text.startswith('"') or text.startswith('"'):
+        text = text[1:]
+    while text.endswith('"') or text.endswith('"'):
+        text = text[:-1]
+    return text.strip()
+
 def tts(text, output_path, speaker_wav, model_name="tts_models/multilingual/multi-dataset/xtts_v2", device='auto', language='zh-cn'):
     global model
+    
+    # 清理文本中的多余引号
+    text = clean_quotes(text)
     
     if os.path.exists(output_path):
         logger.info(f'TTS {text} 已存在')

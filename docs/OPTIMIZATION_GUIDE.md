@@ -1,5 +1,22 @@
 # YouDub 快速模式配置指南
 
+## 🚀 笔记本优化配置（默认）
+
+以下配置针对 8GB 显存笔记本电脑优化：
+
+| 参数 | 推荐值 | 说明 |
+|------|--------|------|
+| Resolution | 720p | 降低分辨率可大幅减少显存占用 |
+| Demucs Model | htdemucs | 比 htdemucs_ft 快约 2 倍 |
+| Number of shifts | 0 | 关闭偏移以提升速度 |
+| Whisper Model | medium | 比 large 快约 2 倍 |
+| Whisper Batch Size | 4 | 显存不足时降低此值 |
+| Whisper Diarization | False | 关闭说话人分离可节省显存 |
+| Max Workers | 1 | 避免并行处理导致显存不足 |
+| Force Bytedance | True | 使用火山引擎 TTS 比本地 XTTS 快 3-5 倍 |
+
+---
+
 ## 🚀 推荐配置（速度优先）
 
 ### 方案 1：极速模式（适合快速预览）
@@ -9,25 +26,36 @@ Resolution: 720p                    # 降低分辨率，下载更快
 Demucs Model: htdemucs             # 比 htdemucs_ft 快 2 倍
 Number of shifts: 0                # 最大速度提升（质量略降）
 Whisper Model: small               # 比 large 快 4 倍
-Whisper Batch Size: 64             # 提高批处理大小
+Whisper Batch Size: 4              # 降低以节省显存
 Whisper Diarization: False         # 关闭说话人分离
-Max Workers: 3                     # 并行处理 3 个视频
+Max Workers: 1                     # 笔记本建议单线程
+Force Bytedance: True              # 使用火山引擎 TTS
 ```
 
 ### 方案 2：平衡模式（推荐日常使用）
 ```python
 # 在 Gradio UI 中设置：
-Resolution: 1080p
-Demucs Model: htdemucs_ft
+Resolution: 720p
+Demucs Model: htdemucs
 Number of shifts: 1                # 质量与速度平衡
 Whisper Model: medium              # 比 large 快 2 倍，质量仍可接受
-Whisper Batch Size: 32
+Whisper Batch Size: 4
 Whisper Diarization: False
-Max Workers: 2
+Max Workers: 1
+Force Bytedance: True
 ```
 
 ### 方案 3：质量模式（最终发布）
 ```python
+# 在 Gradio UI 中设置：
+Resolution: 1080p
+Demucs Model: htdemucs_ft
+Number of shifts: 5                # 最高质量
+Whisper Model: large
+Whisper Batch Size: 4
+Whisper Diarization: True          # 启用说话人分离
+Max Workers: 1                     # 单视频最高质量处理
+```
 # 在 Gradio UI 中设置：
 Resolution: 1080p
 Demucs Model: htdemucs_ft

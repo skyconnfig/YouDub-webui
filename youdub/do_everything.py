@@ -1,6 +1,8 @@
 import json
 import os
 import time
+import gc
+import torch
 from loguru import logger
 from .step000_video_downloader import get_info_list_from_url, download_single_video, get_target_folder
 from .step010_demucs_vr import separate_all_audio_under_folder, init_demucs
@@ -13,6 +15,15 @@ from .step060_genrate_info import generate_all_info_under_folder
 from .step070_upload_bilibili import upload_all_videos_under_folder
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
+
+
+def clear_gpu_memory():
+    """Clear GPU memory cache to avoid OOM errors"""
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+    gc.collect()
+    logger.info("GPU memory cleared")
 
 
 
@@ -61,15 +72,22 @@ def process_video(info, root_folder, resolution, demucs_model, device, shifts, w
             logger.info(f'Process video in {folder}')
             separate_all_audio_under_folder(
                 folder, model_name=demucs_model, device=device, progress=True, shifts=shifts)
+            clear_gpu_memory()  # Clear GPU memory after Demucs
+            
             transcribe_all_audio_under_folder(
                 folder, model_name=whisper_model, download_root=whisper_download_root, device=device, batch_size=whisper_batch_size, diarization=whisper_diarization, 
                 min_speakers=whisper_min_speakers,
                 max_speakers=whisper_max_speakers)
+            clear_gpu_memory()  # Clear GPU memory after Whisper
             
             translate_all_transcript_under_folder(
                 folder, target_language=translation_target_language
             )
+            clear_gpu_memory()  # Clear GPU memory after translation
+            
             generate_all_wavs_under_folder(folder, force_bytedance=force_bytedance)
+            clear_gpu_memory()  # Clear GPU memory after TTS
+            
             synthesize_all_video_under_folder(folder, subtitles=subtitles, speed_up=speed_up, fps=fps, resolution=target_resolution)
             generate_all_info_under_folder(folder)
             if auto_upload_video:
@@ -81,7 +99,7 @@ def process_video(info, root_folder, resolution, demucs_model, device, shifts, w
     return False
 
 
-def do_everything(root_folder, url, num_videos=5, resolution='1080p', demucs_model='htdemucs_ft', device='auto', shifts=5, whisper_model='large', whisper_download_root='models/ASR/whisper', whisper_batch_size=32, whisper_diarization=True, whisper_min_speakers=None, whisper_max_speakers=None, translation_target_language='简体中文', force_bytedance=False, subtitles=True, speed_up=1.05, fps=30, target_resolution='1080p', max_workers=3, max_retries=5, auto_upload_video=True):
+def do_everything(root_folder, url, num_videos=5, resolution='720p', demucs_model='htdemucs', device='auto', shifts=0, whisper_model='medium', whisper_download_root='models/ASR/whisper', whisper_batch_size=4, whisper_diarization=False, whisper_min_speakers=None, whisper_max_speakers=None, translation_target_language='简体中文', force_bytedance=True, subtitles=True, speed_up=1.05, fps=30, target_resolution='720p', max_workers=1, max_retries=3, auto_upload_video=False):
     success_list = []
     fail_list = []
 
@@ -92,9 +110,10 @@ def do_everything(root_folder, url, num_videos=5, resolution='1080p', demucs_mod
     with ThreadPoolExecutor() as executor:
         # Submitting the tasks
         # video_info_future = executor.submit(get_info_list_from_url, urls, num_videos)
-        executor.submit(init_demucs)
+        executor.submit(init_demucs, demucs_model, device, shifts)
         executor.submit(init_TTS)
-        executor.submit(init_whisperx)
+        # 使用传入的 whisper_model 参数初始化
+        executor.submit(init_whisperx, whisper_model, whisper_download_root, device)
 
         # Waiting for the get_info_list_from_url task to complete and storing its result
         # video_info_list = video_info_future.result()
