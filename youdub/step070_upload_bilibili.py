@@ -2,6 +2,7 @@ import subprocess
 import time
 import json
 import os
+import traceback
 from bilibili_toolman.bilisession.web import BiliSession
 from bilibili_toolman.bilisession.common.submission import Submission
 from dotenv import load_dotenv
@@ -10,16 +11,24 @@ from loguru import logger
 load_dotenv()
 
 def bili_login():
-
     SESSDATA = os.getenv('BILI_SESSDATA')
     BILI_JCT = os.getenv('BILI_BILI_JCT')
+    
+    if not SESSDATA or not BILI_JCT:
+        raise Exception('BILIBILI 登录失败：缺少 SESSDATA 或 BILI_JCT 环境变量。请在 .env 文件中设置。')
+    
     try:
         session = BiliSession(f'SESSDATA={SESSDATA};bili_jct={BILI_JCT}')
-        logger.info(f"bilibili登陆成功。")
+        # 验证登录是否成功
+        self_info = session.Self
+        if self_info.get('code') != 0:
+            raise Exception(f"BILIBILI 登录验证失败: {self_info.get('message', '未知错误')}")
+        logger.info(f"bilibili 登录成功，用户: {self_info.get('data', {}).get('uname', 'unknown')}")
         return session
     except Exception as e:
-        logger.error(e)
-        raise Exception('bilibili登陆失败，请更换SESSDATA和bili_jct。')
+        logger.error(f"bilibili 登录失败: {e}")
+        logger.debug(traceback.format_exc())
+        raise Exception(f'bilibili 登录失败，请检查 SESSDATA 和 bili_jct 是否有效: {e}')
 
 def upload_video(folder):
     submission_result_path = os.path.join(folder, 'bilibili.json')
@@ -56,8 +65,26 @@ def upload_video(folder):
     # Submit the submission
     for retry in range(5):
         try:
+            logger.info(f"开始上传视频: {video_path}")
+            
+            # Check if video file exists
+            if not os.path.exists(video_path):
+                raise Exception(f"视频文件不存在: {video_path}")
+            
+            # Check if cover file exists
+            if not os.path.exists(cover_path):
+                logger.warning(f"封面文件不存在: {cover_path}，将尝试不上传封面")
+                cover_path = None
+            
             # Upload video and get endpoint
-            video_endpoint, _ = session.UploadVideo(video_path)
+            logger.info("正在上传视频文件到 Bilibili...")
+            try:
+                video_endpoint, _ = session.UploadVideo(video_path)
+            except Exception as upload_err:
+                error_msg = str(upload_err)
+                if "resp" in error_msg and "referenced before assignment" in error_msg:
+                    raise Exception(f"视频上传失败：可能是登录凭据过期或网络问题。请检查 SESSDATA 和 BILI_JCT 是否有效。原始错误: {upload_err}")
+                raise
 
             # Create a submission object
             submission = Submission(
@@ -74,14 +101,19 @@ def upload_video(folder):
             )
 
             # Upload and set cover
-            # cover = session.UploadCover(cover_path)
-            submission.cover_url = session.UploadCover(cover_path)
+            if cover_path:
+                logger.info(f"正在上传封面: {cover_path}")
+                try:
+                    cover_url = session.UploadCover(cover_path)
+                    if cover_url:
+                        submission.cover_url = cover_url
+                        logger.info(f"封面上传成功: {cover_url}")
+                    else:
+                        logger.warning("封面上传失败，将继续尝试提交视频")
+                except Exception as cover_err:
+                    logger.warning(f"封面上传失败: {cover_err}，将继续尝试提交视频")
 
-            # Set additional properties as needed
-            # For example, setting source, tags, and thread
-            # submission.source = 'https://source_url.com'
-            # submission.tags.append('Tag1')
-            # submission.tags.append('Tag2')
+            # Set additional properties
             tags = ['YouDub', summary["author"], 'AI',
                     'ChatGPT'] + tags + ['中文配音', '科学', '科普', ]
             for tag in tags[:12]:
@@ -89,21 +121,30 @@ def upload_video(folder):
                     tag = tag[:20]
                 submission.tags.append(tag)
             submission.thread = 201  # 科普 201, 科技
-            # submission.copyright = submission.COPYRIGHT_ORIGINAL
             submission.copyright = submission.COPYRIGHT_REUPLOAD
             submission.source = webpage_url
+            
+            logger.info("正在提交视频信息...")
             response = session.SubmitSubmission(submission, seperate_parts=False)
+            
             if response['results'][0]['code'] != 0:
-                logger.error(response)
-                raise Exception(response)
-            logger.info(f"Submission successful: {response}")
+                error_code = response['results'][0].get('code', 'unknown')
+                error_message = response['results'][0].get('message', '未知错误')
+                raise Exception(f"提交失败: 错误码 {error_code}, 消息: {error_message}")
+            
+            logger.info(f"视频上传成功: {response}")
             with open(os.path.join(folder, 'bilibili.json'), 'w', encoding='utf-8') as f:
                 json.dump(response, f, ensure_ascii=False, indent=4)
             return True
+            
         except Exception as e:
-            logger.error(f"Error submitting:\n{e}")
-            time.sleep(10)
-    raise Exception('上传失败')
+            logger.error(f"第 {retry + 1}/5 次上传尝试失败:\n{e}")
+            logger.debug(traceback.format_exc())
+            if retry < 4:  # 不是最后一次重试
+                logger.info(f"等待 10 秒后重试...")
+                time.sleep(10)
+    
+    raise Exception('上传失败：已达到最大重试次数')
 
 def upload_all_videos_under_folder(folder):
     for dir, _, files in os.walk(folder):
