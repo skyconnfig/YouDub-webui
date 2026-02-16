@@ -3,8 +3,56 @@ from demucs.api import Separator
 import os
 from loguru import logger
 import time
+import subprocess
 from .utils import save_wav, normalize_wav
 import torch
+import shutil
+
+def check_ffmpeg():
+    """检查 ffmpeg 是否可用"""
+    # 首先尝试从系统 PATH 中查找
+    ffmpeg_path = shutil.which('ffmpeg')
+    if ffmpeg_path:
+        return ffmpeg_path
+    
+    # 尝试常见的 Windows 安装路径
+    common_paths = [
+        r'C:\ffmpeg\bin\ffmpeg.exe',
+        r'C:\ffmpeg\ffmpeg-8.0.1-essentials_build\bin\ffmpeg.exe',
+        r'C:\Program Files\ffmpeg\bin\ffmpeg.exe',
+        r'C:\Program Files (x86)\ffmpeg\bin\ffmpeg.exe',
+    ]
+    
+    for path in common_paths:
+        if os.path.exists(path):
+            return path
+    
+    return None
+
+def get_ffmpeg_install_guide():
+    """返回 ffmpeg 安装指导"""
+    return """
+ffmpeg 未安装或未添加到系统 PATH。请按照以下步骤安装：
+
+方法1 - 使用 winget 安装（推荐）：
+  1. 打开 PowerShell 或命令提示符（管理员）
+  2. 运行：winget install Gyan.FFmpeg
+  3. 安装完成后重启程序
+
+方法2 - 手动安装：
+  1. 访问 https://github.com/BtbN/FFmpeg-Builds/releases
+  2. 下载 ffmpeg-master-latest-win64-gpl.zip
+  3. 解压到 C:\ffmpeg
+  4. 将 C:\ffmpeg\bin 添加到系统 PATH：
+     - 右键"此电脑" → 属性 → 高级系统设置 → 环境变量
+     - 在"系统变量"中找到 Path，点击编辑
+     - 添加 C:\ffmpeg\bin
+  5. 重启程序
+
+方法3 - 如果已安装但程序找不到：
+  在 .env 文件中添加：
+  FFMPEG_PATH=C:\\path\\to\\your\\ffmpeg.exe
+"""
 
 # 设置模型下载目录 - 使用已有的 Demucs 模型
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -43,11 +91,11 @@ else:
 auto_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 separator = None
 
-def init_demucs():
+def init_demucs(model_name='htdemucs', device='auto', shifts=0):
     global separator
-    separator = load_model()
+    separator = load_model(model_name, device, True, shifts)
     
-def load_model(model_name: str = "htdemucs_ft", device: str = 'auto', progress: bool = True, shifts: int=5) -> Separator:
+def load_model(model_name: str = "htdemucs", device: str = 'auto', progress: bool = True, shifts: int=0) -> Separator:
     global separator
     if separator is not None:
         logger.info(f'Demucs model already loaded')
@@ -114,13 +162,17 @@ def separate_audio(folder: str, model_name: str = "htdemucs_ft", device: str = '
     logger.info(f'Instruments saved to {instruments_output_path}')
     
 def extract_audio_from_video(folder: str) -> bool:
-    # Try mp4 first, then webm
-    video_extensions = ['.mp4', '.webm']
+    # 检查 ffmpeg
+    ffmpeg_path = check_ffmpeg()
+    if not ffmpeg_path:
+        error_msg = get_ffmpeg_install_guide()
+        logger.error(error_msg)
+        raise Exception(f"ffmpeg 未安装\n{error_msg}")
+    
     video_path = None
-    for ext in video_extensions:
-        video_path_candidate = os.path.join(folder, f'download{ext}')
-        if os.path.exists(video_path_candidate):
-            video_path = video_path_candidate
+    for file in os.listdir(folder):
+        if file.startswith('download') and (file.endswith('.mp4') or file.endswith('.webm')):
+            video_path = os.path.join(folder, file)
             break
     
     if video_path is None:
@@ -131,6 +183,22 @@ def extract_audio_from_video(folder: str) -> bool:
     if os.path.exists(audio_path):
         logger.info(f'Audio already extracted in {folder}')
         return True
+    
+    logger.info(f'Extracting audio from {video_path}')
+    
+    # 使用找到的 ffmpeg 路径
+    cmd = f'"{ffmpeg_path}" -loglevel error -i "{video_path}" -vn -acodec pcm_s16le -ar 44100 -ac 2 "{audio_path}"'
+    result = os.system(cmd)
+    
+    if result != 0:
+        raise Exception(f"ffmpeg 音频提取失败，请检查视频文件是否损坏: {video_path}")
+    
+    # 验证音频文件是否成功创建
+    if not os.path.exists(audio_path):
+        raise Exception(f"ffmpeg 未能创建音频文件: {audio_path}")
+    
+    logger.info(f'Audio extracted from {folder}')
+    return True
     logger.info(f'Extracting audio from {video_path}')
 
     os.system(
