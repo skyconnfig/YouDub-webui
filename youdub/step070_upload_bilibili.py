@@ -7,6 +7,7 @@ from bilibili_toolman.bilisession.web import BiliSession
 from bilibili_toolman.bilisession.common.submission import Submission
 from dotenv import load_dotenv
 from loguru import logger
+from requests.exceptions import ProxyError
 # Load environment variables
 load_dotenv()
 
@@ -25,6 +26,26 @@ def bili_login():
             raise Exception(f"BILIBILI 登录验证失败: {self_info.get('message', '未知错误')}")
         logger.info(f"bilibili 登录成功，用户: {self_info.get('data', {}).get('uname', 'unknown')}")
         return session
+    except ProxyError as pe:
+        logger.error(f"bilibili 登录失败 - 代理错误: {pe}")
+        logger.debug(traceback.format_exc())
+        raise Exception(
+            "BILIBILI 登录失败：代理服务器连接错误。\n\n"
+            "可能的原因：\n"
+            "1. 系统配置了代理服务器，但代理服务器未运行或拒绝连接\n"
+            "2. 代理服务器配置错误\n\n"
+            "解决方案：\n"
+            "方法1 - 禁用代理（推荐）：\n"
+            "  • 检查系统代理设置：设置 → 网络和 Internet → 代理\n"
+            "  • 关闭'使用代理服务器'选项\n"
+            "  • 或删除 HTTP_PROXY/HTTPS_PROXY 环境变量\n\n"
+            "方法2 - 修复代理：\n"
+            "  • 确保代理软件（Clash/V2Ray/Shadowsocks等）正在运行\n"
+            "  • 检查代理端口配置是否正确\n\n"
+            "方法3 - 使用环境变量绕过代理：\n"
+            "  • 在 .env 文件中添加：NO_PROXY=api.bilibili.com,member.bilibili.com\n\n"
+            f"原始错误: {pe}"
+        )
     except Exception as e:
         logger.error(f"bilibili 登录失败: {e}")
         logger.debug(traceback.format_exc())
