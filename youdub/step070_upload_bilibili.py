@@ -11,6 +11,49 @@ from requests.exceptions import ProxyError
 # Load environment variables
 load_dotenv()
 
+def check_upload_permission(session, video_path):
+    """检查账户是否有上传权限"""
+    import os.path
+    basename = os.path.basename(video_path)
+    size = os.path.getsize(video_path)
+    
+    try:
+        response = session._preupload(name=basename, size=size)
+        config = response.json()
+        
+        if config.get('OK') == 0 and config.get('code') == 601:
+            # 账户需要完善信息
+            return False, (
+                "Bilibili 账户需要完善信息才能上传视频。\n\n"
+                "错误信息：您未上传过视频，请先完善信息后再试\n\n"
+                "解决方案：\n"
+                "1. 在浏览器中登录 Bilibili (https://www.bilibili.com)\n"
+                "2. 进入创作者中心 (https://member.bilibili.com/platform/upload)\n"
+                "3. 完善账户信息：\n"
+                "   - 上传头像\n"
+                "   - 填写个人简介\n"
+                "   - 完成实名认证（如需要）\n"
+                "4. 手动上传一个测试视频（哪怕只传几秒钟）\n"
+                "5. 完成以上步骤后，API 上传功能才会开通\n\n"
+                "注意：这是 Bilibili 的账户限制，不是代码问题。\n"
+                "必须完成账户初始化才能使用 API 上传功能。"
+            )
+        
+        if 'auth' not in config:
+            return False, (
+                "无法获取上传授权（auth token）。\n\n"
+                "API 响应内容：\n" + json.dumps(config, indent=2, ensure_ascii=False) + "\n\n"
+                "可能的原因：\n"
+                "1. 账户未完成实名认证\n"
+                "2. 账户从未上传过视频\n"
+                "3. 登录凭据已过期\n\n"
+                "请尝试在浏览器中手动上传一个视频，然后再使用此工具。"
+            )
+        
+        return True, None
+    except Exception as e:
+        return False, f"检查上传权限时出错: {e}"
+
 def bili_login():
     SESSDATA = os.getenv('BILI_SESSDATA')
     BILI_JCT = os.getenv('BILI_BILI_JCT')
@@ -20,11 +63,6 @@ def bili_login():
     
     try:
         session = BiliSession(f'SESSDATA={SESSDATA};bili_jct={BILI_JCT}')
-        # 验证登录是否成功（跳过验证，直接尝试上传）
-        # self_info = session.Self
-        # if self_info.get('code') != 0:
-        #     raise Exception(f"BILIBILI 登录验证失败: {self_info.get('message', '未知错误')}")
-        # logger.info(f"bilibili 登录成功，用户: {self_info.get('data', {}).get('uname', 'unknown')}")
         logger.info(f"bilibili 会话已创建，准备上传...")
         return session
     except ProxyError as pe:
@@ -82,7 +120,13 @@ def upload_video(folder):
         summary['summary'] + '\n\n项目地址：https://github.com/liuzhao1225/YouDub-webui\nYouDub 是一个开创性的开源工具，旨在将 YouTube 和其他平台上的高质量视频翻译和配音成中文版本。该工具结合了最新的 AI 技术，包括语音识别、大型语言模型翻译，以及 AI 声音克隆技术，提供与原视频相似的中文配音，为中文用户提供卓越的观看体验。'
 
     session = bili_login()
-    # time.sleep(5)
+    
+    # 检查账户上传权限
+    logger.info("正在检查 Bilibili 账户上传权限...")
+    can_upload, error_msg = check_upload_permission(session, video_path)
+    if not can_upload:
+        raise Exception(error_msg)
+    logger.info("账户上传权限检查通过")
     
     # Submit the submission
     for retry in range(5):
