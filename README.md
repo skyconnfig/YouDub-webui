@@ -113,15 +113,39 @@ ffmpeg -version
 ### 4. 环境设置
 在运行前，请配置环境变量：
 
-- **环境变量配置**：将 `.env.example` 改名为 `.env` 并填入以下环境变量：
-  - `OPENAI_API_KEY`: OpenAI API 密钥，格式通常为 `sk-xxx`。
-  - `MODEL_NAME`: 模型名称，如 'gpt-4' 或 'gpt-3.5-turbo'。
-  - `OPENAI_API_BASE`: OpenAI API 基础 URL，如果使用自己部署的模型，请填入。
-  - `HF_TOKEN`: Hugging Face token，用于 speaker diarization 功能。
-  - `HF_ENDPOINT`: 如果从 `huggingface` 下载模型时出错，可以添加此环境变量。
-  - `APPID` 和 `ACCESS_TOKEN`: 火山引擎 TTS 所需的凭据。
-  - `BILI_SESSDATA` 和 `BILI_BILI_JCT`: Bilibili 上传所需的凭据（见下方详细说明）。
-  - `BILI_BASE64`: Bilibili API 所需的凭据（用于 cookie 认证）。获取方法请参考 [bilibili-toolman 准备凭据](https://github.com/mos9527/bilibili-toolman?tab=readme-ov-file#%E5%87%86%E5%A4%87%E5%87%AD%E6%8D%AE)。
+#### 基础配置
+将 `.env.example` 改名为 `.env` 并填入以下环境变量：
+- `OPENAI_API_KEY`: OpenAI API 密钥，格式通常为 `sk-xxx`。
+- `MODEL_NAME`: 模型名称，如 'gpt-4' 或 'gpt-3.5-turbo'。
+- `OPENAI_API_BASE`: OpenAI API 基础 URL，如果使用自己部署的模型，请填入。
+- `HF_TOKEN`: Hugging Face token，用于 speaker diarization 功能。
+- `HF_ENDPOINT`: 如果从 `huggingface` 下载模型时出错，可以添加此环境变量。
+- `APPID` 和 `ACCESS_TOKEN`: 火山引擎 TTS 所需的凭据。
+- `BILI_SESSDATA` 和 `BILI_BILI_JCT`: Bilibili 上传所需的凭据（见下方详细说明）。
+- `BILI_BASE64`: Bilibili API 所需的凭据（用于 cookie 认证）。获取方法请参考 [bilibili-toolman 准备凭据](https://github.com/mos9527/bilibili-toolman?tab=readme-ov-file#%E5%87%86%E5%A4%87%E5%87%AD%E6%8D%AE)。
+
+#### 视频编码配置（可选）
+- `VIDEO_ENCODER`: 视频编码器选择
+  - `auto`: 自动检测（优先使用 NVIDIA NVENC 硬件编码）⭐ 推荐
+  - `nvenc`: 强制使用 NVIDIA GPU 硬件编码（速度快 5-10 倍）
+  - `x264`: 使用 CPU 软件编码（兼容性好）
+- `VIDEO_QUALITY`: 视频质量（仅 x264 有效）
+  - `high`: 高质量（CRF 18）⭐ 推荐
+  - `medium`: 中等质量（CRF 21）
+  - `low`: 低质量（CRF 25）
+
+#### 术语一致性配置（可选）
+- `TERMINOLOGY_FILE`: 自定义术语词典文件路径
+  - 创建 JSON 文件定义专业术语翻译，例如：
+  ```json
+  {
+    "Transformer": "Transformer",
+    "Machine Learning": "机器学习",
+    "My Company": "我的公司"
+  }
+  ```
+  - 系统已内置 200+ 个常用 AI/科技术语
+  - 支持自定义术语覆盖默认翻译
 
 ### 5. 运行程序
 
