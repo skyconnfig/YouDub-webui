@@ -20,11 +20,12 @@ def bili_login():
     
     try:
         session = BiliSession(f'SESSDATA={SESSDATA};bili_jct={BILI_JCT}')
-        # 验证登录是否成功
-        self_info = session.Self
-        if self_info.get('code') != 0:
-            raise Exception(f"BILIBILI 登录验证失败: {self_info.get('message', '未知错误')}")
-        logger.info(f"bilibili 登录成功，用户: {self_info.get('data', {}).get('uname', 'unknown')}")
+        # 验证登录是否成功（跳过验证，直接尝试上传）
+        # self_info = session.Self
+        # if self_info.get('code') != 0:
+        #     raise Exception(f"BILIBILI 登录验证失败: {self_info.get('message', '未知错误')}")
+        # logger.info(f"bilibili 登录成功，用户: {self_info.get('data', {}).get('uname', 'unknown')}")
+        logger.info(f"bilibili 会话已创建，准备上传...")
         return session
     except ProxyError as pe:
         logger.error(f"bilibili 登录失败 - 代理错误: {pe}")
