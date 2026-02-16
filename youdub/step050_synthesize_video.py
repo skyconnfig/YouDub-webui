@@ -3,8 +3,92 @@ import json
 import os
 import subprocess
 import time
+import shutil
+from dotenv import load_dotenv
 
 from loguru import logger
+
+load_dotenv()
+
+# 视频编码配置
+VIDEO_ENCODER = os.getenv('VIDEO_ENCODER', 'auto')  # auto, nvenc, x264
+VIDEO_QUALITY = os.getenv('VIDEO_QUALITY', 'high')  # high, medium, low
+
+def get_video_encoder_config():
+    """
+    获取视频编码器配置
+    自动检测并使用最佳编码方案
+    """
+    ffmpeg_path = shutil.which('ffmpeg')
+    if not ffmpeg_path:
+        logger.warning("未找到 ffmpeg，使用默认 libx264 编码")
+        return 'libx264', ['-crf', '23', '-preset', 'medium']
+    
+    # 检测 NVENC 支持
+    try:
+        result = subprocess.run([ffmpeg_path, '-encoders'], 
+                              capture_output=True, text=True, timeout=10)
+        has_nvenc = 'h264_nvenc' in result.stdout
+    except:
+        has_nvenc = False
+    
+    # 根据配置和硬件选择编码器
+    if VIDEO_ENCODER == 'nvenc' and has_nvenc:
+        logger.info("使用 NVIDIA NVENC 硬件编码")
+        # NVENC 参数：高质量、VBR模式
+        return 'h264_nvenc', [
+            '-preset', 'p4',           # 预设: p1(快) 到 p7(慢)
+            '-rc', 'vbr',              # 可变码率
+            '-cq', '20',               # 质量等级 (0-51, 越小越好)
+            '-b:v', '0',               # 不限制码率
+            '-maxrate', '50M',         # 最大码率
+            '-bufsize', '100M'         # 缓冲大小
+        ]
+    elif VIDEO_ENCODER == 'x264' or not has_nvenc:
+        logger.info("使用 libx264 软件编码")
+        # x264 参数：基于质量等级
+        if VIDEO_QUALITY == 'high':
+            return 'libx264', [
+                '-crf', '18',          # 高质量 (18-23为视觉无损)
+                '-preset', 'slow',     # 慢预设，更好压缩
+                '-tune', 'film'        # 优化电影内容
+            ]
+        elif VIDEO_QUALITY == 'medium':
+            return 'libx264', [
+                '-crf', '21',
+                '-preset', 'medium'
+            ]
+        else:  # low
+            return 'libx264', [
+                '-crf', '25',
+                '-preset', 'fast'
+            ]
+    else:
+        # auto 模式：优先使用 NVENC
+        if has_nvenc:
+            logger.info("自动检测到 NVIDIA GPU，使用 NVENC 硬件编码")
+            return 'h264_nvenc', [
+                '-preset', 'p4',
+                '-rc', 'vbr', 
+                '-cq', '20',
+                '-b:v', '0',
+                '-maxrate', '50M',
+                '-bufsize', '100M'
+            ]
+        else:
+            logger.info("未检测到 NVIDIA GPU，使用 libx264 软件编码")
+            return 'libx264', [
+                '-crf', '20',
+                '-preset', 'slow'
+            ]
+
+def get_audio_encoder_config():
+    """获取音频编码配置"""
+    return [
+        '-c:a', 'aac',
+        '-b:a', '192k',      # 音频码率
+        '-ar', '48000'       # 采样率
+    ]
 
 
 def split_text(input_data,
@@ -98,6 +182,13 @@ def convert_resolution(aspect_ratio, resolution='1080p'):
     return width, height
     
 def synthesize_video(folder, subtitles=True, speed_up=1.05, fps=30, resolution='1080p'):
+    """
+    合成视频，使用优化的编码参数
+    
+    环境变量配置：
+    - VIDEO_ENCODER: 视频编码器 (auto/nvenc/x264)
+    - VIDEO_QUALITY: 视频质量 (high/medium/low)
+    """
     if os.path.exists(os.path.join(folder, 'video.mp4')):
         logger.info(f'Video already synthesized in {folder}')
         return
@@ -128,7 +219,7 @@ def synthesize_video(folder, subtitles=True, speed_up=1.05, fps=30, resolution='
     srt_path = srt_path.replace('\\', '/')
     aspect_ratio = get_aspect_ratio(input_video)
     width, height = convert_resolution(aspect_ratio, resolution)
-    resolution = f'{width}x{height}'
+    resolution_str = f'{width}x{height}'
     font_size = int(width/128)
     outline = int(round(font_size/8))
     video_speed_filter = f"setpts=PTS/{speed_up}"
@@ -139,22 +230,65 @@ def synthesize_video(folder, subtitles=True, speed_up=1.05, fps=30, resolution='
         filter_complex = f"[0:v]{video_speed_filter},{subtitle_filter}[v];[1:a]{audio_speed_filter}[a]"
     else:
         filter_complex = f"[0:v]{video_speed_filter}[v];[1:a]{audio_speed_filter}[a]"
+    
+    # 获取优化的编码配置
+    video_codec, video_params = get_video_encoder_config()
+    audio_params = get_audio_encoder_config()
+    
+    logger.info(f"开始视频合成: {folder}")
+    logger.info(f"视频编码器: {video_codec}, 分辨率: {resolution_str}, 帧率: {fps}")
+    
+    # 构建 ffmpeg 命令
     ffmpeg_command = [
         'ffmpeg',
+        '-hide_banner',          # 隐藏版本信息
+        '-loglevel', 'warning',  # 只显示警告和错误
+        '-stats',                # 显示编码进度
         '-i', input_video,
         '-i', input_audio,
         '-filter_complex', filter_complex,
         '-map', '[v]',
         '-map', '[a]',
         '-r', str(fps),
-        '-s', resolution,
-        '-c:v', 'libx264',
-        '-c:a', 'aac',
-        output_video,
-        '-y'
+        '-s', resolution_str,
+        '-c:v', video_codec,
     ]
-    subprocess.run(ffmpeg_command)
-    time.sleep(1)
+    
+    # 添加视频编码参数
+    ffmpeg_command.extend(video_params)
+    
+    # 添加音频编码参数
+    ffmpeg_command.extend(audio_params)
+    
+    # 输出文件
+    ffmpeg_command.extend([output_video, '-y'])
+    
+    # 执行编码
+    logger.info(f"使用命令: {' '.join(ffmpeg_command[:10])}...")
+    result = subprocess.run(ffmpeg_command, capture_output=True, text=True)
+    
+    if result.returncode != 0:
+        logger.error(f"视频合成失败: {result.stderr}")
+        # 如果 NVENC 失败，回退到软件编码
+        if video_codec == 'h264_nvenc':
+            logger.warning("NVENC 编码失败，尝试使用软件编码...")
+            ffmpeg_command[ffmpeg_command.index('h264_nvenc')] = 'libx264'
+            # 替换视频参数
+            idx = ffmpeg_command.index('-cq') if '-cq' in ffmpeg_command else -1
+            if idx > 0:
+                ffmpeg_command[idx:idx+6] = ['-crf', '20', '-preset', 'medium']
+            result = subprocess.run(ffmpeg_command, capture_output=True, text=True)
+            if result.returncode != 0:
+                raise Exception(f"视频合成失败: {result.stderr}")
+    
+    # 验证输出文件
+    if os.path.exists(output_video):
+        file_size = os.path.getsize(output_video) / (1024 * 1024)  # MB
+        logger.info(f"视频合成完成: {output_video} ({file_size:.1f} MB)")
+    else:
+        raise Exception("视频合成失败：未生成输出文件")
+    
+    time.sleep(0.5)
     
 
 def synthesize_all_video_under_folder(folder, subtitles=True, speed_up=1.05, fps=30, resolution='1080p'):
