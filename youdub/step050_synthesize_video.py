@@ -14,22 +14,48 @@ load_dotenv()
 VIDEO_ENCODER = os.getenv('VIDEO_ENCODER', 'auto')  # auto, nvenc, x264
 VIDEO_QUALITY = os.getenv('VIDEO_QUALITY', 'high')  # high, medium, low
 
+def get_ffmpeg_path():
+    """获取 ffmpeg 路径，支持多种查找方式"""
+    # 首先尝试从系统 PATH 中查找
+    ffmpeg_path = shutil.which('ffmpeg')
+    if ffmpeg_path:
+        return ffmpeg_path
+    
+    # 检查项目目录下的 ffmpeg
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    project_ffmpeg_paths = [
+        os.path.join(project_root, 'ffmpeg', 'bin', 'ffmpeg.exe'),
+        os.path.join(project_root, 'ffmpeg', 'ffmpeg-8.0.1-essentials_build', 'bin', 'ffmpeg.exe'),
+        r'D:\YouDub-webui\ffmpeg\bin\ffmpeg.exe',
+        r'D:\YouDub-webui\ffmpeg\ffmpeg-8.0.1-essentials_build\bin\ffmpeg.exe',
+    ]
+    
+    for path in project_ffmpeg_paths:
+        if os.path.exists(path):
+            logger.info(f"使用项目目录下的 ffmpeg: {path}")
+            return path
+    
+    return None
+
 def get_video_encoder_config():
     """
     获取视频编码器配置
     自动检测并使用最佳编码方案
     """
-    ffmpeg_path = shutil.which('ffmpeg')
+    ffmpeg_path = get_ffmpeg_path()
     if not ffmpeg_path:
         logger.warning("未找到 ffmpeg，使用默认 libx264 编码")
         return 'libx264', ['-crf', '23', '-preset', 'medium']
+    
+    logger.info(f"检测到 ffmpeg: {ffmpeg_path}")
     
     # 检测 NVENC 支持
     try:
         result = subprocess.run([ffmpeg_path, '-encoders'], 
                               capture_output=True, text=True, timeout=10)
         has_nvenc = 'h264_nvenc' in result.stdout
-    except:
+    except Exception as e:
+        logger.warning(f"检测 NVENC 支持失败: {e}")
         has_nvenc = False
     
     # 根据配置和硬件选择编码器
@@ -159,8 +185,38 @@ def generate_srt(translation, srt_path, speed_up=1, max_line_char=30):
             f.write(f'{text}\n\n')
 
 
+def get_ffprobe_path():
+    """获取 ffprobe 路径"""
+    # 首先尝试从系统 PATH 中查找
+    ffprobe_path = shutil.which('ffprobe')
+    if ffprobe_path:
+        return ffprobe_path
+    
+    # 检查项目目录下的 ffprobe（与 ffmpeg 同目录）
+    ffmpeg_path = get_ffmpeg_path()
+    if ffmpeg_path:
+        ffprobe_path = ffmpeg_path.replace('ffmpeg.exe', 'ffprobe.exe')
+        if os.path.exists(ffprobe_path):
+            return ffprobe_path
+    
+    # 常见路径
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    common_paths = [
+        os.path.join(project_root, 'ffmpeg', 'bin', 'ffprobe.exe'),
+        os.path.join(project_root, 'ffmpeg', 'ffmpeg-8.0.1-essentials_build', 'bin', 'ffprobe.exe'),
+        r'D:\YouDub-webui\ffmpeg\bin\ffprobe.exe',
+        r'D:\YouDub-webui\ffmpeg\ffmpeg-8.0.1-essentials_build\bin\ffprobe.exe',
+    ]
+    
+    for path in common_paths:
+        if os.path.exists(path):
+            return path
+    
+    return 'ffprobe'  # fallback 到系统命令
+
 def get_aspect_ratio(video_path):
-    command = ['ffprobe', '-v', 'error', '-select_streams', 'v:0',
+    ffprobe_path = get_ffprobe_path()
+    command = [ffprobe_path, '-v', 'error', '-select_streams', 'v:0',
                '-show_entries', 'stream=width,height', '-of', 'json', video_path]
     result = subprocess.run(command, capture_output=True, text=True)
     dimensions = json.loads(result.stdout)['streams'][0]
@@ -235,12 +291,18 @@ def synthesize_video(folder, subtitles=True, speed_up=1.05, fps=30, resolution='
     video_codec, video_params = get_video_encoder_config()
     audio_params = get_audio_encoder_config()
     
+    # 获取 ffmpeg 路径
+    ffmpeg_path = get_ffmpeg_path()
+    if not ffmpeg_path:
+        raise Exception("未找到 ffmpeg，无法合成视频")
+    
     logger.info(f"开始视频合成: {folder}")
     logger.info(f"视频编码器: {video_codec}, 分辨率: {resolution_str}, 帧率: {fps}")
+    logger.info(f"使用 ffmpeg: {ffmpeg_path}")
     
     # 构建 ffmpeg 命令
     ffmpeg_command = [
-        'ffmpeg',
+        ffmpeg_path,
         '-hide_banner',          # 隐藏版本信息
         '-loglevel', 'warning',  # 只显示警告和错误
         '-stats',                # 显示编码进度

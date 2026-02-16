@@ -27,6 +27,22 @@ def check_ffmpeg():
         if os.path.exists(path):
             return path
     
+    # 检查项目目录下的 ffmpeg（支持相对路径）
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    project_ffmpeg_paths = [
+        os.path.join(project_root, 'ffmpeg', 'bin', 'ffmpeg.exe'),
+        os.path.join(project_root, 'ffmpeg', 'ffmpeg-8.0.1-essentials_build', 'bin', 'ffmpeg.exe'),
+        os.path.join(project_root, 'ffmpeg.exe'),
+        # 支持 D:\YouDub-webui 这样的绝对路径项目目录
+        r'D:\YouDub-webui\ffmpeg\bin\ffmpeg.exe',
+        r'D:\YouDub-webui\ffmpeg\ffmpeg-8.0.1-essentials_build\bin\ffmpeg.exe',
+    ]
+    
+    for path in project_ffmpeg_paths:
+        if os.path.exists(path):
+            logger.info(f"找到项目目录下的 ffmpeg: {path}")
+            return path
+    
     return None
 
 def get_ffmpeg_install_guide():
