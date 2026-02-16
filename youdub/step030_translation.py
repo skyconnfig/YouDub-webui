@@ -6,11 +6,23 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import time
 from loguru import logger
+from .terminology import TerminologyManager
 
 load_dotenv()
 
+# 初始化术语管理器
+_terminology_manager = None
+
+def get_terminology_manager():
+    """获取术语管理器（延迟初始化）"""
+    global _terminology_manager
+    if _terminology_manager is None:
+        _terminology_manager = TerminologyManager()
+    return _terminology_manager
+
 # 配置翻译后端: "ollama", "groq", 或 "openai"
-TRANSLATION_BACKEND = os.getenv('TRANSLATION_BACKEND', 'ollama').lower()
+# 默认使用 groq（免费且不需要本地服务）
+TRANSLATION_BACKEND = os.getenv('TRANSLATION_BACKEND', 'groq').lower()
 
 # Ollama 配置
 OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'qwen2.5:7b')
@@ -321,6 +333,11 @@ def _translate(summary, transcript, target_language='简体中文'):
     full_translation = []
     # 选择正确的模型
     current_model = OLLAMA_MODEL if TRANSLATION_BACKEND == 'ollama' else model_name
+    
+    # 初始化术语管理器
+    terminology = get_terminology_manager()
+    logger.info(f"术语词典已加载，共 {len(terminology.get_terms())} 个术语")
+    
     fixed_message = [
         {'role': 'system', 'content': f'You are a expert in the field of this video.\n{info}\nTranslate the sentence into {target_language}.下面我让你来充当翻译家，你的目标是把任何语言翻译成中文，请翻译时不要带翻译腔，而是要翻译得自然、流畅和地道，使用优美和高雅的表达方式。请将人工智能的"agent"翻译为"智能体"，强化学习中是`Q-Learning`而不是`Queue Learning`。数学公式写成plain text，不要使用latex。确保翻译正确和简洁。注意信达雅。'},
         {'role': 'user', 'content': '使用地道的中文Translate:"Knowledge is power."'},
@@ -329,7 +346,7 @@ def _translate(summary, transcript, target_language='简体中文'):
         {'role': 'assistant', 'content': '翻译："生存还是毁灭，这是一个值得考虑的问题。"'},]
     
     history = []
-    for line in transcript:
+    for i, line in enumerate(transcript):
         text = line['text']
         # history = ''.join(full_translation[:-10])
         
@@ -347,6 +364,13 @@ def _translate(summary, transcript, target_language='简体中文'):
                     extra_body=extra_body
                 )
                 translation = response.choices[0].message.content.replace('\n', '')
+                
+                # 应用术语一致性替换
+                translation_before = translation
+                translation = terminology.apply_to_translation(translation)
+                if translation != translation_before:
+                    logger.debug(f"术语替换: '{translation_before}' -> '{translation}'")
+                
                 logger.info(f'原文：{text}')
                 logger.info(f'译文：{translation}')
                 success, translation = valid_translation(text, translation)
@@ -361,6 +385,10 @@ def _translate(summary, transcript, target_language='简体中文'):
                 # logger.warning('翻译失败')
                 time.sleep(1)
         full_translation.append(translation)
+        
+        # 每10句显示一次进度
+        if (i + 1) % 10 == 0:
+            logger.info(f"翻译进度: {i + 1}/{len(transcript)}")
         history.append({'role': 'user', 'content': f'Translate:"{text}"'})
         history.append({'role': 'assistant', 'content': f'翻译：“{translation}”'})
         time.sleep(0.1)
