@@ -162,6 +162,10 @@ def separate_audio(folder: str, model_name: str = "htdemucs_ft", device: str = '
     logger.info(f'Instruments saved to {instruments_output_path}')
     
 def extract_audio_from_video(folder: str) -> bool:
+    # 检查文件夹是否存在
+    if not os.path.exists(folder):
+        raise Exception(f"文件夹不存在: {folder}")
+    
     # 检查 ffmpeg
     ffmpeg_path = check_ffmpeg()
     if not ffmpeg_path:
@@ -169,8 +173,15 @@ def extract_audio_from_video(folder: str) -> bool:
         logger.error(error_msg)
         raise Exception(f"ffmpeg 未安装\n{error_msg}")
     
+    logger.info(f"使用 ffmpeg: {ffmpeg_path}")
+    
     video_path = None
-    for file in os.listdir(folder):
+    try:
+        files = os.listdir(folder)
+    except Exception as e:
+        raise Exception(f"无法读取文件夹 {folder}: {e}")
+    
+    for file in files:
         if file.startswith('download') and (file.endswith('.mp4') or file.endswith('.webm')):
             video_path = os.path.join(folder, file)
             break
@@ -178,6 +189,12 @@ def extract_audio_from_video(folder: str) -> bool:
     if video_path is None:
         logger.warning(f'No video file found in {folder}')
         return False
+    
+    # 检查视频文件是否存在
+    if not os.path.exists(video_path):
+        raise Exception(f"视频文件不存在: {video_path}")
+    
+    logger.info(f"找到视频文件: {video_path}")
     
     audio_path = os.path.join(folder, 'audio.wav')
     if os.path.exists(audio_path):
@@ -188,9 +205,19 @@ def extract_audio_from_video(folder: str) -> bool:
     
     # 使用找到的 ffmpeg 路径
     cmd = f'"{ffmpeg_path}" -loglevel error -i "{video_path}" -vn -acodec pcm_s16le -ar 44100 -ac 2 "{audio_path}"'
+    logger.info(f"执行命令: {cmd}")
     result = os.system(cmd)
     
     if result != 0:
+        # 尝试获取更详细的错误信息
+        try:
+            test_cmd = f'"{ffmpeg_path}" -version'
+            test_result = os.system(test_cmd)
+            if test_result != 0:
+                raise Exception(f"ffmpeg 无法执行，请检查路径是否正确: {ffmpeg_path}")
+        except Exception as e:
+            logger.error(f"测试 ffmpeg 失败: {e}")
+        
         raise Exception(f"ffmpeg 音频提取失败，请检查视频文件是否损坏: {video_path}")
     
     # 验证音频文件是否成功创建
@@ -199,15 +226,6 @@ def extract_audio_from_video(folder: str) -> bool:
     
     logger.info(f'Audio extracted from {folder}')
     return True
-    logger.info(f'Extracting audio from {video_path}')
-
-    os.system(
-        f'ffmpeg -loglevel error -i "{video_path}" -vn -acodec pcm_s16le -ar 44100 -ac 2 "{audio_path}"')
-    # load wav and use save_wav_norm to normalize the wav
-    # normalize_wav(audio_path)
-    
-    time.sleep(1)
-    logger.info(f'Audio extracted from {folder}')
     return True
     
 def separate_all_audio_under_folder(root_folder: str, model_name: str = "htdemucs_ft", device: str = 'auto', progress: bool = True, shifts: int = 5) -> None:
