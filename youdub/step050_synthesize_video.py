@@ -15,8 +15,16 @@ VIDEO_ENCODER = os.getenv('VIDEO_ENCODER', 'auto')  # auto, nvenc, x264
 VIDEO_QUALITY = os.getenv('VIDEO_QUALITY', 'high')  # high, medium, low
 
 def get_ffmpeg_path():
-    """获取 ffmpeg 路径，支持多种查找方式"""
-    # 首先尝试从系统 PATH 中查找
+    """获取 ffmpeg 路径，支持多种查找方式，优先使用环境变量配置"""
+    # 首先检查环境变量 FFMPEG_PATH
+    env_ffmpeg_path = os.getenv('FFMPEG_PATH')
+    if env_ffmpeg_path and os.path.exists(env_ffmpeg_path):
+        logger.info(f"使用环境变量配置的 ffmpeg: {env_ffmpeg_path}")
+        return env_ffmpeg_path
+    elif env_ffmpeg_path:
+        logger.warning(f"环境变量 FFMPEG_PATH 指定的路径不存在: {env_ffmpeg_path}")
+    
+    # 尝试从系统 PATH 中查找
     ffmpeg_path = shutil.which('ffmpeg')
     if ffmpeg_path:
         return ffmpeg_path
@@ -186,15 +194,31 @@ def generate_srt(translation, srt_path, speed_up=1, max_line_char=30):
 
 
 def get_ffprobe_path():
-    """获取 ffprobe 路径"""
-    # 首先尝试从系统 PATH 中查找
+    """获取 ffprobe 路径，优先使用环境变量或根据 FFMPEG_PATH 推断"""
+    # 首先检查环境变量 FFPROBE_PATH
+    env_ffprobe_path = os.getenv('FFPROBE_PATH')
+    if env_ffprobe_path and os.path.exists(env_ffprobe_path):
+        logger.info(f"使用环境变量配置的 ffprobe: {env_ffprobe_path}")
+        return env_ffprobe_path
+    elif env_ffprobe_path:
+        logger.warning(f"环境变量 FFPROBE_PATH 指定的路径不存在: {env_ffprobe_path}")
+    
+    # 尝试从 FFMPEG_PATH 推断 ffprobe 路径
+    env_ffmpeg_path = os.getenv('FFMPEG_PATH')
+    if env_ffmpeg_path:
+        inferred_ffprobe = env_ffmpeg_path.replace('ffmpeg.exe', 'ffprobe.exe')
+        if os.path.exists(inferred_ffprobe):
+            logger.info(f"根据 FFMPEG_PATH 推断的 ffprobe: {inferred_ffprobe}")
+            return inferred_ffprobe
+    
+    # 尝试从系统 PATH 中查找
     ffprobe_path = shutil.which('ffprobe')
     if ffprobe_path:
         return ffprobe_path
     
     # 检查项目目录下的 ffprobe（与 ffmpeg 同目录）
     ffmpeg_path = get_ffmpeg_path()
-    if ffmpeg_path:
+    if ffmpeg_path and ffmpeg_path != 'ffmpeg':
         ffprobe_path = ffmpeg_path.replace('ffmpeg.exe', 'ffprobe.exe')
         if os.path.exists(ffprobe_path):
             return ffprobe_path

@@ -9,8 +9,16 @@ import torch
 import shutil
 
 def check_ffmpeg():
-    """检查 ffmpeg 是否可用"""
-    # 首先尝试从系统 PATH 中查找
+    """检查 ffmpeg 是否可用，优先使用环境变量配置的路径"""
+    # 首先检查环境变量 FFMPEG_PATH
+    env_ffmpeg_path = os.getenv('FFMPEG_PATH')
+    if env_ffmpeg_path and os.path.exists(env_ffmpeg_path):
+        logger.info(f"使用环境变量配置的 ffmpeg: {env_ffmpeg_path}")
+        return env_ffmpeg_path
+    elif env_ffmpeg_path:
+        logger.warning(f"环境变量 FFMPEG_PATH 指定的路径不存在: {env_ffmpeg_path}")
+    
+    # 尝试从系统 PATH 中查找
     ffmpeg_path = shutil.which('ffmpeg')
     if ffmpeg_path:
         return ffmpeg_path
