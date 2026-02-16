@@ -80,10 +80,39 @@ def upload_video(folder):
             logger.info("正在上传视频文件到 Bilibili...")
             try:
                 video_endpoint, _ = session.UploadVideo(video_path)
+            except KeyError as ke:
+                # 处理 bilibili_toolman 库中的 KeyError（如 'OK' 键不存在）
+                error_msg = str(ke)
+                if error_msg == "'OK'":
+                    raise Exception(
+                        "视频上传失败：Bilibili API 返回了非预期的响应格式。\n"
+                        "可能的原因：\n"
+                        "1. 网络连接不稳定（上传进度达到 4% 后中断）\n"
+                        "2. Bilibili 服务器暂时不可用\n"
+                        "3. 上传的视频格式或大小不符合要求\n\n"
+                        "建议：\n"
+                        "1. 检查网络连接是否稳定\n"
+                        "2. 等待几分钟后重试\n"
+                        "3. 如果问题持续，尝试手动上传到 Bilibili"
+                    )
+                else:
+                    raise
             except Exception as upload_err:
                 error_msg = str(upload_err)
                 if "resp" in error_msg and "referenced before assignment" in error_msg:
                     raise Exception(f"视频上传失败：可能是登录凭据过期或网络问题。请检查 SESSDATA 和 BILI_JCT 是否有效。原始错误: {upload_err}")
+                if error_msg == "'OK'":
+                    raise Exception(
+                        "视频上传失败：Bilibili API 返回了非预期的响应格式。\n"
+                        "可能的原因：\n"
+                        "1. 网络连接不稳定（上传进度达到 4% 后中断）\n"
+                        "2. Bilibili 服务器暂时不可用\n"
+                        "3. 上传的视频格式或大小不符合要求\n\n"
+                        "建议：\n"
+                        "1. 检查网络连接是否稳定\n"
+                        "2. 等待几分钟后重试\n"
+                        "3. 如果问题持续，尝试手动上传到 Bilibili"
+                    )
                 raise
 
             # Create a submission object
