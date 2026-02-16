@@ -102,7 +102,7 @@ def upload_video(folder):
             try:
                 video_endpoint, _ = session.UploadVideo(video_path)
             except KeyError as ke:
-                # 处理 bilibili_toolman 库中的 KeyError（如 'OK' 键不存在）
+                # 处理 bilibili_toolman 库中的 KeyError（如 'OK' 或 'auth' 键不存在）
                 error_msg = str(ke)
                 if error_msg == "'OK'":
                     raise Exception(
@@ -116,12 +116,40 @@ def upload_video(folder):
                         "2. 等待几分钟后重试\n"
                         "3. 如果问题持续，尝试手动上传到 Bilibili"
                     )
+                elif error_msg == "'auth'":
+                    raise Exception(
+                        "视频上传失败：无法获取上传授权（auth token）。\n\n"
+                        "可能的原因：\n"
+                        "1. Bilibili 账户没有上传权限（需要实名认证）\n"
+                        "2. 账户被封禁或限制上传\n"
+                        "3. 登录凭据已过期（SESSDATA 或 BILI_JCT 失效）\n"
+                        "4. Bilibili API 响应格式变更\n\n"
+                        "解决方案：\n"
+                        "1. 确保 Bilibili 账户已完成实名认证\n"
+                        "2. 在浏览器中登录 Bilibili，确认可以正常上传视频\n"
+                        "3. 重新获取 SESSDATA 和 BILI_JCT（从浏览器 Cookie 中复制最新值）\n"
+                        "4. 检查账户是否有任何限制或封禁通知\n\n"
+                        "如果问题持续，建议：\n"
+                        "• 尝试手动上传视频到 Bilibili 确认账户正常\n"
+                        "• 检查 Bilibili 账户设置中的实名认证状态"
+                    )
                 else:
                     raise
             except Exception as upload_err:
                 error_msg = str(upload_err)
                 if "resp" in error_msg and "referenced before assignment" in error_msg:
-                    raise Exception(f"视频上传失败：可能是登录凭据过期或网络问题。请检查 SESSDATA 和 BILI_JCT 是否有效。原始错误: {upload_err}")
+                    raise Exception(
+                        "视频上传失败：无法获取上传授权。\n\n"
+                        "可能的原因：\n"
+                        "1. Bilibili 账户没有上传权限（需要实名认证）\n"
+                        "2. 登录凭据已过期（SESSDATA 或 BILI_JCT 失效）\n"
+                        "3. Bilibili API 临时不可用\n\n"
+                        "解决方案：\n"
+                        "1. 确保 Bilibili 账户已完成实名认证\n"
+                        "2. 重新获取 SESSDATA 和 BILI_JCT（从浏览器 Cookie 中复制最新值）\n"
+                        "3. 尝试手动上传视频确认账户正常\n\n"
+                        f"原始错误: {upload_err}"
+                    )
                 if error_msg == "'OK'":
                     raise Exception(
                         "视频上传失败：Bilibili API 返回了非预期的响应格式。\n"
