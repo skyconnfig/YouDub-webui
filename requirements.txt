@@ -24,6 +24,7 @@ torchaudio>=2.0.0
 
 # Text-to-Speech
 TTS>=0.22.0
+edge-tts>=6.1.0
 
 # TTS dependencies (required for proper functionality)
 gruut>=2.2.0

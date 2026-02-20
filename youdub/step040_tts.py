@@ -13,6 +13,12 @@ from audiostretchy.stretch import stretch_audio
 # Lazy imports to avoid dependency issues
 bytedance_tts = None
 xtts_tts = None
+edge_tts = None
+
+# TTS Engine selection
+TTS_ENGINE_XTTS = "xtts"
+TTS_ENGINE_BYTEDANCE = "bytedance"
+TTS_ENGINE_EDGE = "edge"
 
 def _get_bytedance_tts():
     global bytedance_tts
@@ -27,6 +33,31 @@ def _get_xtts_tts():
         from .step042_tts_xtts import tts as xtts_tts_func
         xtts_tts = xtts_tts_func
     return xtts_tts
+
+def _get_edge_tts():
+    global edge_tts
+    if edge_tts is None:
+        from .step043_tts_edge import tts as edge_tts_func
+        edge_tts = edge_tts_func
+    return edge_tts
+
+
+def get_tts_engine(engine: str = TTS_ENGINE_XTTS):
+    """
+    Get TTS engine function by name.
+    
+    Args:
+        engine: TTS engine name - "xtts", "bytedance", or "edge"
+    
+    Returns:
+        TTS function
+    """
+    if engine == TTS_ENGINE_BYTEDANCE:
+        return _get_bytedance_tts()
+    elif engine == TTS_ENGINE_EDGE:
+        return _get_edge_tts()
+    else:
+        return _get_xtts_tts()
 
 normalizer = TextNorm()
 def preprocess_text(text):
@@ -57,7 +88,22 @@ def adjust_audio_length(wav_path, desired_length, sample_rate = 24000, min_speed
     wav, sample_rate = librosa.load(target_path, sr=sample_rate)
     return wav[:int(desired_length*sample_rate)], desired_length
 
-def generate_wavs(folder, force_bytedance=False):
+def generate_wavs(folder, force_bytedance=False, tts_engine: str = None):
+    """
+    Generate TTS audio files for translated transcript.
+    
+    Args:
+        folder: Folder containing translation.json
+        force_bytedance: Force using Bytedance TTS (legacy parameter)
+        tts_engine: TTS engine to use - "xtts", "bytedance", or "edge"
+                    If None, defaults to XTTS with voice cloning
+    """
+    # Determine which engine to use
+    if force_bytedance:
+        tts_engine = TTS_ENGINE_BYTEDANCE
+    elif tts_engine is None:
+        tts_engine = TTS_ENGINE_XTTS
+    
     transcript_path = os.path.join(folder, 'translation.json')
     output_folder = os.path.join(folder, 'wavs')
     if not os.path.exists(output_folder):
@@ -71,6 +117,10 @@ def generate_wavs(folder, force_bytedance=False):
     num_speakers = len(speakers)
     logger.info(f'Found {num_speakers} speakers')
     
+    # Get TTS engine function
+    tts_func = get_tts_engine(tts_engine)
+    logger.info(f'Using TTS engine: {tts_engine}')
+    
     full_wav = np.zeros((0, ))
     for i, line in enumerate(transcript):
         speaker = line['speaker']
@@ -78,15 +128,16 @@ def generate_wavs(folder, force_bytedance=False):
         output_path = os.path.join(output_folder, f'{str(i).zfill(4)}.wav')
         speaker_wav = os.path.join(folder, 'SPEAKER', f'{speaker}.wav')
         
-        # Use lazy getters to avoid import issues
-        _bytedance = _get_bytedance_tts()
-        _xtts = _get_xtts_tts()
-        
-        # Use XTTS (local model) by default, unless force_bytedance=True
-        if force_bytedance:
-            _bytedance(text, output_path, speaker_wav, voice_type='BV701_streaming')
+        # Call TTS based on engine type
+        if tts_engine == TTS_ENGINE_BYTEDANCE:
+            tts_func(text, output_path, speaker_wav, voice_type='BV701_streaming')
+        elif tts_engine == TTS_ENGINE_EDGE:
+            # Edge-TTS doesn't use voice cloning, use default Chinese voice
+            tts_func(text, output_path, speaker_wav=None, voice_type='zh-CN-XiaoxiaoNeural')
         else:
-            _xtts(text, output_path, speaker_wav)
+            # XTTS - default with voice cloning
+            tts_func(text, output_path, speaker_wav)
+        
         start = line['start']
         end = line['end']
         length = end-start
@@ -128,10 +179,18 @@ def generate_wavs(folder, force_bytedance=False):
     logger.info(f'Generated {os.path.join(folder, "audio_combined.wav")}')
         
 
-def generate_all_wavs_under_folder(root_folder, force_bytedance=False):
+def generate_all_wavs_under_folder(root_folder, force_bytedance=False, tts_engine: str = None):
+    """
+    Generate TTS audio for all videos under a folder.
+    
+    Args:
+        root_folder: Root folder containing video subfolders
+        force_bytedance: Force using Bytedance TTS (legacy parameter)
+        tts_engine: TTS engine - "xtts", "bytedance", or "edge"
+    """
     for root, dirs, files in os.walk(root_folder):
         if 'translation.json' in files and 'audio_combined.wav' not in files:
-            generate_wavs(root, force_bytedance)
+            generate_wavs(root, force_bytedance, tts_engine)
     return f'Generated all wavs under {root_folder}'
 
 if __name__ == '__main__':

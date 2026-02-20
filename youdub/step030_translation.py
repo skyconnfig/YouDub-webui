@@ -338,12 +338,31 @@ def _translate(summary, transcript, target_language='简体中文'):
     terminology = get_terminology_manager()
     logger.info(f"术语词典已加载，共 {len(terminology.get_terms())} 个术语")
     
+    # Enhanced translation prompt with better context handling
+    # Note: Building prompt with f-string outside list to avoid syntax issues
+    system_prompt = f'''You are a professional translator specializing in video content translation.
+Context: This is a video titled "{summary['title']}". {summary['summary']}
+
+Translation Requirements:
+1. Translate into {target_language} naturally, fluently, and idiomatically
+2. Avoid translationese - aim for native-sounding output
+3. Maintain the original tone (formal/informal/humorous)
+4. Keep technical terms accurate and consistent
+5. For AI/tech terms: use Chinese equivalents (agent->智能体, LLM->大语言模型)
+6. Math formulas: write as plain text, not LaTeX
+7. Preserve proper nouns in original language unless widely accepted Chinese exists
+8. Keep abbreviations intact unless Chinese equivalent is standard
+9. Pay attention to fidelity (信), fluency (达), and elegance (雅)
+
+Output format: Only provide the translated text, no explanations.'''
+    
     fixed_message = [
-        {'role': 'system', 'content': f'You are a expert in the field of this video.\n{info}\nTranslate the sentence into {target_language}.下面我让你来充当翻译家，你的目标是把任何语言翻译成中文，请翻译时不要带翻译腔，而是要翻译得自然、流畅和地道，使用优美和高雅的表达方式。请将人工智能的"agent"翻译为"智能体"，强化学习中是`Q-Learning`而不是`Queue Learning`。数学公式写成plain text，不要使用latex。确保翻译正确和简洁。注意信达雅。'},
-        {'role': 'user', 'content': '使用地道的中文Translate:"Knowledge is power."'},
-        {'role': 'assistant', 'content': '翻译："知识就是力量。"'},
-        {'role': 'user', 'content': '使用地道的中文Translate:"To be or not to be, that is the question."'},
-        {'role': 'assistant', 'content': '翻译："生存还是毁灭，这是一个值得考虑的问题。"'},]
+        {'role': 'system', 'content': system_prompt},
+        {'role': 'user', 'content': 'Translate to natural Chinese: "Knowledge is power."'},
+        {'role': 'assistant', 'content': '知识就是力量。'},
+        {'role': 'user', 'content': 'Translate to natural Chinese: "To be or not to be, that is the question."'},
+        {'role': 'assistant', 'content': '生存还是毁灭，这是一个问题。'},
+    ]
     
     history = []
     for i, line in enumerate(transcript):

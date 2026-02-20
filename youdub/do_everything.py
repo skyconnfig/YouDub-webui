@@ -27,7 +27,7 @@ def clear_gpu_memory():
 
 
 
-def process_video(info, root_folder, resolution, demucs_model, device, shifts, whisper_model, whisper_download_root, whisper_batch_size, whisper_diarization, whisper_min_speakers, whisper_max_speakers, translation_target_language, force_bytedance, subtitles, speed_up, fps, target_resolution, max_retries, auto_upload_video):
+def process_video(info, root_folder, resolution, demucs_model, device, shifts, whisper_model, whisper_download_root, whisper_batch_size, whisper_diarization, whisper_min_speakers, whisper_max_speakers, translation_target_language, force_bytedance, subtitles, speed_up, fps, target_resolution, max_retries, auto_upload_video, tts_engine=None):
     # only work during 21:00-8:00
     local_time = time.localtime()
     
@@ -85,7 +85,7 @@ def process_video(info, root_folder, resolution, demucs_model, device, shifts, w
             )
             clear_gpu_memory()  # Clear GPU memory after translation
             
-            generate_all_wavs_under_folder(folder, force_bytedance=force_bytedance)
+            generate_all_wavs_under_folder(folder, force_bytedance=force_bytedance, tts_engine=tts_engine)
             clear_gpu_memory()  # Clear GPU memory after TTS
             
             synthesize_all_video_under_folder(folder, subtitles=subtitles, speed_up=speed_up, fps=fps, resolution=target_resolution)
@@ -99,7 +99,7 @@ def process_video(info, root_folder, resolution, demucs_model, device, shifts, w
     return False
 
 
-def do_everything(root_folder, url, num_videos=5, resolution='720p', demucs_model='htdemucs', device='auto', shifts=0, whisper_model='medium', whisper_download_root='models/ASR/whisper', whisper_batch_size=4, whisper_diarization=False, whisper_min_speakers=None, whisper_max_speakers=None, translation_target_language='简体中文', force_bytedance=False, subtitles=True, speed_up=1.05, fps=30, target_resolution='720p', max_workers=1, max_retries=3, auto_upload_video=False):
+def do_everything(root_folder, url, num_videos=5, resolution='720p', demucs_model='htdemucs', device='auto', shifts=0, whisper_model='medium', whisper_download_root='models/ASR/whisper', whisper_batch_size=4, whisper_diarization=False, whisper_min_speakers=None, whisper_max_speakers=None, translation_target_language='简体中文', force_bytedance=False, subtitles=True, speed_up=1.05, fps=30, target_resolution='720p', max_workers=1, max_retries=3, auto_upload_video=False, tts_engine=None):
     success_list = []
     fail_list = []
 
@@ -134,7 +134,7 @@ def do_everything(root_folder, url, num_videos=5, resolution='720p', demucs_mode
     #             fail_list.append(info)
     def process_and_track(info):
         success = process_video(info, root_folder, resolution, demucs_model, device, shifts, whisper_model, whisper_download_root, whisper_batch_size,
-                                whisper_diarization, whisper_min_speakers, whisper_max_speakers, translation_target_language, force_bytedance, subtitles, speed_up, fps, target_resolution, max_retries, auto_upload_video)
+                                whisper_diarization, whisper_min_speakers, whisper_max_speakers, translation_target_language, force_bytedance, subtitles, speed_up, fps, target_resolution, max_retries, auto_upload_video, tts_engine)
         return (info, success)
     
     # Use ThreadPoolExecutor for parallel processing
