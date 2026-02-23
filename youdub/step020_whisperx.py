@@ -125,24 +125,36 @@ def transcribe_audio(folder, model_name: str = 'large', download_root='models/AS
 def generate_speaker_audio(folder, transcript):
     wav_path = os.path.join(folder, 'audio_vocals.wav')
     audio_data, samplerate = librosa.load(wav_path, sr=24000)
-    speaker_dict = dict()
+    
+    # 获取每个说话者最长的一个片段作为克隆参考
+    # 相比以前简单的全量拼接，选择单一长片段往往能获得更纯净的音质
+    speaker_best_segments = dict() # speaker -> (audio, duration)
     length = len(audio_data)
     delay = 0.05
+    
     for segment in transcript:
+        duration = segment['end'] - segment['start']
+        if duration < 1.0: # 太短的片段不适合做参考
+            continue
+            
         start = max(0, int((segment['start'] - delay) * samplerate))
-        end = min(int((segment['end']+delay) * samplerate), length)
-        speaker_segment_audio = audio_data[start:end]
-        speaker_dict[segment['speaker']] = np.concatenate((speaker_dict.get(
-            segment['speaker'], np.zeros((0, ))), speaker_segment_audio))
+        end = min(int((segment['end'] + delay) * samplerate), length)
+        segment_audio = audio_data[start:end]
+        
+        current_best = speaker_best_segments.get(segment['speaker'], (None, 0))
+        if duration > current_best[1]:
+            # 限制参考音频长度，15秒通常是最佳平衡点
+            audio_to_save = segment_audio[:int(15 * samplerate)] if duration > 15 else segment_audio
+            speaker_best_segments[segment['speaker']] = (audio_to_save, min(duration, 15))
 
     speaker_folder = os.path.join(folder, 'SPEAKER')
     if not os.path.exists(speaker_folder):
         os.makedirs(speaker_folder)
     
-    for speaker, audio in speaker_dict.items():
-        speaker_file_path = os.path.join(
-            speaker_folder, f"{speaker}.wav")
-        save_wav(audio, speaker_file_path)
+    for speaker, (audio, _) in speaker_best_segments.items():
+        if audio is not None:
+            speaker_file_path = os.path.join(speaker_folder, f"{speaker}.wav")
+            save_wav(audio, speaker_file_path)
             
 
 def transcribe_all_audio_under_folder(folder, model_name: str = 'large', download_root='models/ASR/whisper', device='auto', batch_size=32, diarization=True, min_speakers=None, max_speakers=None):
@@ -154,5 +166,3 @@ def transcribe_all_audio_under_folder(folder, model_name: str = 'large', downloa
 
 if __name__ == '__main__':
     transcribe_all_audio_under_folder('videos')
-    
-    

@@ -15,6 +15,14 @@ from .step060_genrate_info import generate_all_info_under_folder
 from .step070_upload_bilibili import upload_all_videos_under_folder
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
+import warnings
+
+# 过滤掉一些库产生的噪点警告，保持控制台整洁
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", message="Plan failed with a cudnnException")
+warnings.filterwarnings("ignore", message="The link '.*' contains anchor '.*' which is not found in the target '.*'")
+warnings.filterwarnings("ignore", message="Creating a tensor from a list of numpy.ndarrays is extremely slow")
 
 
 def clear_gpu_memory():

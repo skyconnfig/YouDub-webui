@@ -30,13 +30,19 @@ def _get_xtts_tts():
 
 normalizer = TextNorm()
 def preprocess_text(text):
-    # 清理文本中的多余引号（中文引号 """ 和英文引号 """）
-    # 使用循环移除所有开头和结尾的引号
+    # 清理各种中英文引号
+    quotes = ['"', '"', '“', '”', "'", "'", '‘', '’', '«', '»', '《', '》']
     text = text.strip()
-    while text.startswith('"') or text.startswith('"'):
-        text = text[1:]
-    while text.endswith('"') or text.endswith('"'):
-        text = text[:-1]
+    changed = True
+    while changed:
+        changed = False
+        for q in quotes:
+            if text.startswith(q):
+                text = text[len(q):].strip()
+                changed = True
+            if text.endswith(q):
+                text = text[:-len(q)].strip()
+                changed = True
     text = text.strip()
     text = text.replace('AI', '人工智能')
     text = re.sub(r'(?<!^)([A-Z])', r' \1', text)
@@ -71,36 +77,53 @@ def generate_wavs(folder, force_bytedance=False):
     num_speakers = len(speakers)
     logger.info(f'Found {num_speakers} speakers')
     
-    full_wav = np.zeros((0, ))
-    for i, line in enumerate(transcript):
+    from concurrent.futures import ThreadPoolExecutor
+    
+    # 1. 并行生成原始音频文件
+    def tts_worker(idx_line):
+        idx, line = idx_line
         speaker = line['speaker']
         text = preprocess_text(line['translation'])
-        output_path = os.path.join(output_folder, f'{str(i).zfill(4)}.wav')
+        output_path = os.path.join(output_folder, f'{str(idx).zfill(4)}.wav')
         speaker_wav = os.path.join(folder, 'SPEAKER', f'{speaker}.wav')
-        
-        # Use lazy getters to avoid import issues
-        _bytedance = _get_bytedance_tts()
-        _xtts = _get_xtts_tts()
         
         # Use XTTS (local model) by default, unless force_bytedance=True
         if force_bytedance:
-            _bytedance(text, output_path, speaker_wav, voice_type='BV701_streaming')
+            bytedance_func = _get_bytedance_tts()
+            bytedance_func(text, output_path, speaker_wav, voice_type='BV701_streaming')
         else:
-            _xtts(text, output_path, speaker_wav)
+            xtts_func = _get_xtts_tts()
+            xtts_func(text, output_path, speaker_wav)
+        return idx, output_path
+
+    logger.info(f"Starting parallel TTS generation with ThreadPoolExecutor...")
+    # 由于 XTTS 需要 GPU 锁，实际推理是串行的。
+    # 使用少量线程做文件读取/预处理的重叠，避免过多线程抢锁带来的开销。
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        list(executor.map(tts_worker, enumerate(transcript)))
+
+    # 2. 顺序调整音频长度并拼接
+    full_wav = np.zeros((0, ))
+    for i, line in enumerate(transcript):
+        output_path = os.path.join(output_folder, f'{str(i).zfill(4)}.wav')
+        
         start = line['start']
         end = line['end']
-        length = end-start
-        last_end = len(full_wav)/24000
+        length = end - start
+        last_end = len(full_wav) / 24000
+        
         if start > last_end:
             full_wav = np.concatenate((full_wav, np.zeros((int((start - last_end) * 24000), ))))
-        start = len(full_wav)/24000
+        
+        start = len(full_wav) / 24000
         line['start'] = start
+        
         if i < len(transcript) - 1:
             next_line = transcript[i+1]
             next_end = next_line['end']
             end = min(start + length, next_end)
-        wav, length = adjust_audio_length(output_path, end-start)
-
+            
+        wav, length = adjust_audio_length(output_path, end - start)
         full_wav = np.concatenate((full_wav, wav))
         line['end'] = start + length
         

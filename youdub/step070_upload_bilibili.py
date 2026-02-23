@@ -117,7 +117,7 @@ def upload_video(folder):
     title_English = data['title']
     webpage_url = data['webpage_url']
     description = f'{title_English}\n' + \
-        summary['summary'] + '\n\n项目地址：https://github.com/liuzhao1225/YouDub-webui\nYouDub 是一个开创性的开源工具，旨在将 YouTube 和其他平台上的高质量视频翻译和配音成中文版本。该工具结合了最新的 AI 技术，包括语音识别、大型语言模型翻译，以及 AI 声音克隆技术，提供与原视频相似的中文配音，为中文用户提供卓越的观看体验。'
+        summary['summary'] + '\n\n项目地址：https://github.com/skyconnfig/YouDub-webui\nYouDub 是一个开创性的开源工具，旨在将 YouTube 和其他平台上的高质量视频翻译和配音成中文版本。该工具结合了最新的 AI 技术，包括语音识别、大型语言模型翻译，以及 AI 声音克隆技术，提供与原视频相似的中文配音，为中文用户提供卓越的观看体验。'
 
     session = bili_login()
     

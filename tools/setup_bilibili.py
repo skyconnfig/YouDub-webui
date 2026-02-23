@@ -72,12 +72,18 @@ def update_env_file(sessdata, bili_jct, env_file='.env'):
     return env_path
 
 def main():
-    cookie_file = 'blibili.txt'
-    env_file = '.env'
+    # Try project root config/bilibili.txt
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cookie_file = os.path.join(project_root, 'config', 'bilibili.txt')
+    env_file = os.path.join(project_root, '.env')
+    
+    if not os.path.exists(cookie_file):
+        # Fallback to local
+        cookie_file = 'bilibili.txt'
     
     if not os.path.exists(cookie_file):
         print(f"错误: 找不到 cookie 文件 {cookie_file}")
-        print("请确保 blibili.txt 文件在项目根目录下")
+        print("请确保 bilibili.txt 文件在 config/ 目录下")
         return
     
     print("正在解析 cookie 文件...")

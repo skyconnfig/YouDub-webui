@@ -141,10 +141,11 @@ def find_cookies_file():
     # Check multiple possible locations
     possible_paths = [
         os.path.join(current_dir, 'cookies.txt'),
+        os.path.join(current_dir, 'config', 'cookies.txt'),
         os.path.join(current_dir, '..', 'cookies.txt'),
+        os.path.join(current_dir, '..', 'config', 'cookies.txt'),
         os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'cookies.txt'),
-        # Also check project root (d:\YouDub-webui\)
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'cookies.txt'),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config', 'cookies.txt'),
     ]
     
     for path in possible_paths:

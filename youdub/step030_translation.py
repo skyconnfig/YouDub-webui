@@ -108,7 +108,7 @@ def summarize(info, transcript, target_language='简体中文'):
     
     messages = [
         {'role': 'system',
-            'content': f'You are a expert in the field of this video. Please detailedly summarize the video in JSON format.\n```json\n{{"title": "the title of the video", "summary", "the summary of the video"}}\n```'},
+            'content': f'你是一位专业的视频内容分析师。请结合标题和文案，对视频内容进行深入总结。输出格式必须为严格的 JSON。\n```json\n{{"title": "中文标题", "summary": "详细的中内容摘要"}}\n```'},
         {'role': 'user', 'content': full_description},
     ]
     retry_message=''
@@ -153,9 +153,9 @@ def summarize(info, transcript, target_language='简体中文'):
     tags = info['tags']
     messages = [
         {'role': 'system',
-            'content': f'You are a native speaker of {target_language}. Please translate the title and summary into {target_language} in JSON format. ```json\n{{"title": "the {target_language} title of the video", "summary", "the {target_language} summary of the video", "tags": [list of tags in {target_language}]}}\n```.'},
+            'content': f'你是一位母语为{target_language}的资深本地化专家。请将视频的标题、摘要和标签翻译成地道的{target_language}，确保符合中国用户的阅读习惯和搜索偏好。输出格式为 JSON。\n```json\n{{"title": "{target_language}标题", "summary": "{target_language}摘要", "tags": [针对B站优化的标签列表]}}\n```.'},
         {'role': 'user',
-            'content': f'The title of the video is "{title}". The summary of the video is "{summary}". Tags: {tags}.\nPlease translate the above title and summary and tags into {target_language} in JSON format. ```json\n{{"title": "", "summary", ""， "tags": []}}\n```. Remember to tranlate the title and the summary and tags into {target_language} in JSON.'},
+            'content': f'原标题: "{title}"\n原摘要: "{summary}"\n原标签: {tags}.\n请翻译成{target_language}，特别注意标题要吸引人。'},
     ]
     while True:
         try:
@@ -196,6 +196,19 @@ def translation_postprocess(result):
     result = result.replace("AI", '人工智能')
     result = result.replace('变压器', "Transformer")
     return result
+
+
+def _is_repetitive(text: str, threshold: int = 3) -> bool:
+    """检测文本是否包含重复短语（LLM复读识别）"""
+    # 按标点分割后统计重复
+    sentences = [s.strip() for s in re.split(r'[。，！？；\n]', text) if s.strip()]
+    if not sentences:
+        return False
+    from collections import Counter
+    counts = Counter(sentences)
+    # 如果任何一个片段出现超过阈值次数，认为是复读
+    return any(v >= threshold for v in counts.values())
+
 
 def valid_translation(text, translation):
     
@@ -238,17 +251,23 @@ def valid_translation(text, translation):
         translation = translation.split('："')[-1].split('"')[0]
         return True, translation_postprocess(translation)
     
+    # 中文翻译通常比英文原文短，不需要严格限制长度
+    # 只拦截明显过长(超过原文3倍)的情况，避免误杀正常翻译
     if len(text) <= 10:
-        if len(translation) > 15:
-            return False, f'Only translate the following sentence and give me the result.'
-    elif len(translation) > len(text)*0.75:
-        return False, f'The translation is too long. Only translate the following sentence and give me the result.'
+        if len(translation) > 30:
+            return False, f'Translation is too long. Just give me the short Chinese translation directly, no explanation.'
+    elif len(translation) > len(text) * 3:
+        return False, f'Translation is too long ({len(translation)} chars vs original {len(text)} chars). Just translate directly.'
     
     forbidden = ['这句', '\n', '简体中文', '中文', 'translate', 'Translate', 'translation', 'Translation']
     translation = translation.strip()
     for word in forbidden:
         if word in translation:
             return False, f"Don't include `{word}` in the translation. Only translate the following sentence and give me the result."
+    
+    # 最后一关：复读检测
+    if _is_repetitive(translation, threshold=3):
+        return False, '翻译内容出现大量重复，请重新翻译，只输出正常的一句话翻译结果。'
     
     return True, translation_postprocess(translation)
 # def split_sentences(translation, punctuations=['。', '？', '！', '\n', '”', '"']):
@@ -339,11 +358,8 @@ def _translate(summary, transcript, target_language='简体中文'):
     logger.info(f"术语词典已加载，共 {len(terminology.get_terms())} 个术语")
     
     fixed_message = [
-        {'role': 'system', 'content': f'You are a expert in the field of this video.\n{info}\nTranslate the sentence into {target_language}.下面我让你来充当翻译家，你的目标是把任何语言翻译成中文，请翻译时不要带翻译腔，而是要翻译得自然、流畅和地道，使用优美和高雅的表达方式。请将人工智能的"agent"翻译为"智能体"，强化学习中是`Q-Learning`而不是`Queue Learning`。数学公式写成plain text，不要使用latex。确保翻译正确和简洁。注意信达雅。'},
-        {'role': 'user', 'content': '使用地道的中文Translate:"Knowledge is power."'},
-        {'role': 'assistant', 'content': '翻译："知识就是力量。"'},
-        {'role': 'user', 'content': '使用地道的中文Translate:"To be or not to be, that is the question."'},
-        {'role': 'assistant', 'content': '翻译："生存还是毁灭，这是一个值得考虑的问题。"'},]
+        {'role': 'system', 'content': f'你是一位天才翻译家和资深配音导演。正在处理视频《{summary["title"]}》。摘要：{summary["summary"]}\n\n你的任务是将以下字幕片段翻译成地道的{target_language}，用于后期配音。\n\n**金律：**\n1. **绝对不要“翻译腔”**：不要直译，要像中国人在说话。使用口语化表达。\n2. **信达雅**：保持原意，但要转换成目标语言中对应的惯用语、成语或流行梗。\n3. **配音适配**：控制语速和字数，确保配音时自然顺滑。\n4. **术语统一**：专业名词要准确，不要画蛇添足（如：agent -> 智能体）。\n5. **简洁有力**：只返回翻译后的文本，严禁带任何多余说明或转义符号。'},
+    ]
     
     history = []
     for i, line in enumerate(transcript):

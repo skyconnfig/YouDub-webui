@@ -36,7 +36,7 @@ request_json = {
         "cluster": 'volcano_tts'
     },
     "user": {
-        "uid": "https://github.com/liuzhao1225/YouDub-webui"
+        "uid": "https://github.com/skyconnfig/YouDub-webui"
     },
     "audio": {
         "voice_type": 'BV001_streaming',
