@@ -52,6 +52,5 @@ python patch_bilibili.py
 本项目遵循 Apache License 2.0。
 
 ## 引用与致谢
-- [YouDub](https://github.com/liuzhao1225/YouDub)
 - [WhisperX](https://github.com/m-bain/whisperX)
 - [bilibili-toolman](https://github.com/mos9527/bilibili-toolman)
