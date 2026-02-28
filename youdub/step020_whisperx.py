@@ -45,10 +45,15 @@ def load_align_model(language='en', device='auto'):
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
     language_code = language
     t_start = time.time()
-    align_model, align_metadata = whisperx.load_align_model(
-        language_code=language_code, device=device)
-    t_end = time.time()
-    logger.info(f'Loaded alignment model: {language_code} in {t_end - t_start:.2f}s')
+    try:
+        align_model, align_metadata = whisperx.load_align_model(
+            language_code=language_code, device=device)
+        t_end = time.time()
+        logger.info(f'Loaded alignment model: {language_code} in {t_end - t_start:.2f}s')
+    except Exception as e:
+        logger.warning(f'No alignment model for language: {language_code}, skipping alignment: {e}')
+        align_model = None
+        align_metadata = None
     
 def load_diarize_model(device='auto'):
     global diarize_model
@@ -93,7 +98,10 @@ def transcribe_audio(folder, model_name: str = 'large', download_root='models/AS
     
     wav_path = os.path.join(folder, 'audio_vocals.wav')
     if not os.path.exists(wav_path):
-        return False
+        # Try using the original audio file if vocals don't exist
+        wav_path = os.path.join(folder, 'audio.wav')
+        if not os.path.exists(wav_path):
+            return False
     
     logger.info(f'Transcribing {wav_path}')
     if device == 'auto':
@@ -102,12 +110,22 @@ def transcribe_audio(folder, model_name: str = 'large', download_root='models/AS
     rec_result = whisper_model.transcribe(wav_path, batch_size=batch_size)
     
     if rec_result['language'] == 'nn':
-        logger.warning(f'No language detected in {wav_path}')
-        return False
+        logger.warning(f'No language detected in {wav_path}, trying with audio.wav')
+        # Try with original audio file if vocals failed
+        if wav_path != os.path.join(folder, 'audio.wav'):
+            wav_path = os.path.join(folder, 'audio.wav')
+            if os.path.exists(wav_path):
+                rec_result = whisper_model.transcribe(wav_path, batch_size=batch_size)
+                if rec_result['language'] == 'nn':
+                    logger.warning(f'No language detected in {wav_path} either')
+                    return False
+            else:
+                return False
     
     load_align_model(rec_result['language'])
-    rec_result = whisperx.align(rec_result['segments'], align_model, align_metadata,
-                                wav_path, device, return_char_alignments=False)
+    if align_model is not None:
+        rec_result = whisperx.align(rec_result['segments'], align_model, align_metadata,
+                                    wav_path, device, return_char_alignments=False)
     
     if diarization:
         load_diarize_model(device)

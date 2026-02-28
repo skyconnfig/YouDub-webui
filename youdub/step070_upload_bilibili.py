@@ -103,7 +103,11 @@ def upload_video(folder):
     cover_path = os.path.join(folder, 'video.png')
 
     # Load summary data
-    with open(os.path.join(folder, 'summary.json'), 'r', encoding='utf-8') as f:
+    summary_path = os.path.join(folder, 'summary.json')
+    if not os.path.exists(summary_path):
+        logger.warning(f'summary.json not found in {folder}, skipping upload')
+        return True
+    with open(summary_path, 'r', encoding='utf-8') as f:
         summary = json.load(f)
     summary['title'] = summary['title'].replace('视频标题：', '').strip()
     summary['summary'] = summary['summary'].replace(

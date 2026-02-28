@@ -1,6 +1,7 @@
 import json
 import os
 from PIL import Image
+from loguru import logger
 
 
 def resize_thumbnail(folder, size=(1280, 960)):
@@ -40,7 +41,11 @@ def resize_thumbnail(folder, size=(1280, 960)):
         return new_img_path
 
 def generate_summary_txt(folder):
-    with open(os.path.join(folder, 'summary.json'), 'r', encoding='utf-8') as f:
+    summary_path = os.path.join(folder, 'summary.json')
+    if not os.path.exists(summary_path):
+        logger.warning(f'summary.json not found in {folder}, skipping')
+        return
+    with open(summary_path, 'r', encoding='utf-8') as f:
         summary = json.load(f)
     title = f'{summary["title"]} - {summary["author"]}'
     summary = summary['summary']
