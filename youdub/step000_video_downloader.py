@@ -4,52 +4,69 @@ import subprocess
 import shutil
 from loguru import logger
 
-# Setup Deno for yt-dlp JavaScript runtime before importing yt_dlp
-DENO_PATH = None
-DENO_CANDIDATES = [
-    os.path.expanduser("~/.deno/bin/deno.exe"),
-    os.path.expanduser("~/.deno/bin/deno"),
-    r"C:\Users\lixin\.deno\bin\deno.exe",
-    r"C:\Program Files\deno\deno.exe",
-    "deno",  # Try system PATH
+# Setup JS runtime for yt-dlp JavaScript challenge solving
+import subprocess
+import shutil
+
+JS_RUNTIME_PATH = None
+JS_RUNTIME_TYPE = None
+
+# Try Deno first (recommended), then Node.js as fallback
+RUNTIME_CANDIDATES = [
+    ("deno", [
+        os.path.expanduser("~/.deno/bin/deno.exe"),
+        os.path.expanduser("~/.deno/bin/deno"),
+        r"C:\Users\lixin\.deno\bin\deno.exe",
+        r"C:\Program Files\deno\deno.exe",
+        "deno",
+    ]),
+    ("node", [
+        r"C:\Program Files\nodejs\node.exe",
+        r"C:\Program Files (x86)\nodejs\node.exe",
+        os.path.expanduser("~/.nvm/current/node.exe"),
+        "node",
+    ]),
 ]
 
-for deno_candidate in DENO_CANDIDATES:
-    if shutil.which(deno_candidate) or os.path.exists(deno_candidate):
-        DENO_PATH = deno_candidate if shutil.which(deno_candidate) else deno_candidate
-        # Add to PATH if not already there
-        deno_dir = os.path.dirname(DENO_PATH) if os.path.exists(DENO_PATH) else os.path.dirname(shutil.which(deno_candidate))
-        if deno_dir:
-            current_path = os.environ.get('PATH', '')
-            if deno_dir not in current_path:
-                os.environ['PATH'] = deno_dir + os.pathsep + current_path
-        # Set environment variable for yt-dlp to find Deno
-        os.environ['YTDL_DENO_PATH'] = DENO_PATH
-        os.environ['YTDLPSCRIPT_PATH'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'yt-dlp-player.js')
+for runtime_type, candidates in RUNTIME_CANDIDATES:
+    for candidate in candidates:
+        if shutil.which(candidate) or os.path.exists(candidate):
+            JS_RUNTIME_PATH = candidate if shutil.which(candidate) else candidate
+            JS_RUNTIME_TYPE = runtime_type
+            # Add to PATH if not already there
+            runtime_dir = os.path.dirname(JS_RUNTIME_PATH) if os.path.exists(JS_RUNTIME_PATH) else os.path.dirname(shutil.which(candidate))
+            if runtime_dir:
+                current_path = os.environ.get('PATH', '')
+                if runtime_dir not in current_path:
+                    os.environ['PATH'] = runtime_dir + os.pathsep + current_path
+            # Set environment variable for yt-dlp
+            os.environ['YTDLPSCRIPT_PATH'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'yt-dlp-player.js')
+            break
+    if JS_RUNTIME_PATH:
         break
 
-# Import yt_dlp after setting up PATH
+# Import yt_dlp after setting up JS runtime
 import yt_dlp
 
-if DENO_PATH:
-    logger.info(f"✅ Deno JS runtime found: {DENO_PATH}")
-    # Verify Deno works
+if JS_RUNTIME_PATH and JS_RUNTIME_TYPE:
+    logger.info(f"✅ {JS_RUNTIME_TYPE.upper()} JS runtime found: {JS_RUNTIME_PATH}")
+    # Verify the runtime works
     try:
-        result = subprocess.run([DENO_PATH, "--version"], capture_output=True, text=True, timeout=10)
+        result = subprocess.run([JS_RUNTIME_PATH, "--version"], capture_output=True, text=True, timeout=10)
         if result.returncode == 0:
-            logger.info(f"✅ Deno version: {result.stdout.strip()}")
+            logger.info(f"✅ {JS_RUNTIME_TYPE.capitalize()} version: {result.stdout.strip()}")
         else:
-            logger.warning(f"⚠️ Deno test failed: {result.stderr}")
+            logger.warning(f"⚠️ {JS_RUNTIME_TYPE} test failed: {result.stderr}")
     except Exception as e:
-        logger.warning(f"⚠️ Failed to verify Deno: {e}")
+        logger.warning(f"⚠️ Failed to verify {JS_RUNTIME_TYPE}: {e}")
 else:
-    logger.error("❌ Deno NOT FOUND! YouTube downloads will fail!")
-    logger.error("❌ Please install Deno to fix YouTube download issues:")
-    logger.error("   Windows PowerShell (Admin): winget install deno")
-    logger.error("   OR: irm https://deno.land/install.ps1 | iex")
+    logger.error("❌ No JS runtime found! YouTube downloads will fail!")
+    logger.error("❌ Please install Deno or Node.js to fix YouTube download issues:")
+    logger.error("   Deno (recommended): winget install deno")
+    logger.error("   Node.js (alternative): winget install OpenJS.NodeJS")
     logger.error("")
     logger.error("   After installation, restart this application.")
-    logger.warning("⚠️ Without Deno, YouTube downloads may fail due to signature challenges")
+    logger.warning("⚠️ Without JS runtime, YouTube downloads will fail due to signature challenges")
 
 
 # Get proxy settings from environment
@@ -172,6 +189,12 @@ def find_deno_executable():
 
 def get_ydl_opts(extra_opts=None):
     """Get base yt-dlp options with proxy, cookie, and JS runtime support"""
+    
+    # Configure JS runtime - use detected runtime or fallback
+    js_runtime_config = {}
+    if JS_RUNTIME_TYPE and JS_RUNTIME_PATH:
+        js_runtime_config = {JS_RUNTIME_TYPE: {}}
+    
     opts = {
         # Default format - simplest possible
         'ignoreerrors': False,
@@ -188,15 +211,31 @@ def get_ydl_opts(extra_opts=None):
         # Enable remote components for EJS challenge solver
         # This is required for YouTube downloads with newer yt-dlp versions
         'remote_components': {'ejs:github'},
-        # Also specify js_runtimes to ensure deno is used
-        'js_runtimes': {'deno': {}},
+        # Use detected JS runtime (deno or node)
+        'js_runtimes': js_runtime_config if js_runtime_config else None,
+        # Use multiple client strategies to bypass challenges
+        # Try in order: mobile → web → default
+        'extractor_args': {
+            'youtube': {
+                'player_client': [
+                    'android_tv',      # Android TV client (often works without challenge)
+                    'android',         # Android client
+                    'web',            # Web client
+                    'default',        # Default client
+                ],
+                'formats': 'missing_ok',
+            }
+        },
+        # Retry settings for robustness
+        'retries': 3,
+        'fragment_retries': 3,
     }
     
     # Add proxy if configured
     if PROXY_URL:
         opts['proxy'] = PROXY_URL
     
-    # Add cookies if available (for YouTube authentication)
+    # Add cookies if available (for YouTube authentication - bypasses challenges!)
     cookie_file = find_cookies_file()
     if cookie_file:
         opts['cookiefile'] = cookie_file

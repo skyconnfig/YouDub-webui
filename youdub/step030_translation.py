@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 import time
 from loguru import logger
 from .terminology import TerminologyManager
+import time as time_module
 
 load_dotenv()
 
@@ -357,8 +358,12 @@ def _translate(summary, transcript, target_language='简体中文'):
     terminology = get_terminology_manager()
     logger.info(f"术语词典已加载，共 {len(terminology.get_terms())} 个术语")
     
+    # 进度跟踪
+    start_time = time_module.time()
+    total_lines = len(transcript)
+    
     fixed_message = [
-        {'role': 'system', 'content': f'你是一位天才翻译家和资深配音导演。正在处理视频《{summary["title"]}》。摘要：{summary["summary"]}\n\n你的任务是将以下字幕片段翻译成地道的{target_language}，用于后期配音。\n\n**金律：**\n1. **绝对不要“翻译腔”**：不要直译，要像中国人在说话。使用口语化表达。\n2. **信达雅**：保持原意，但要转换成目标语言中对应的惯用语、成语或流行梗。\n3. **配音适配**：控制语速和字数，确保配音时自然顺滑。\n4. **术语统一**：专业名词要准确，不要画蛇添足（如：agent -> 智能体）。\n5. **简洁有力**：只返回翻译后的文本，严禁带任何多余说明或转义符号。'},
+        {'role': 'system', 'content': f'你是一位天才翻译家和资深配音导演。正在处理视频《{summary["title"]}》。摘要：{summary["summary"]}\n\n你的任务是将以下字幕片段翻译成地道的{target_language}，用于后期配音。\n\n**金律：**\n1. **绝对不要"翻译腔"**：不要直译，要像中国人在说话。使用口语化表达。\n2. **信达雅**：保持原意，但要转换成目标语言中对应的惯用语，成语或流行梗。\n3. **配音适配**：控制语速和字数，确保配音时自然顺滑。\n4. **术语统一**：专业名词要准确，不要画蛇添足（如：agent -> 智能体）。\n5. **简洁有力**：只返回翻译后的文本，严禁带任何多余说明或转义符号。'},
     ]
     
     history = []
@@ -402,13 +407,54 @@ def _translate(summary, transcript, target_language='简体中文'):
                 time.sleep(1)
         full_translation.append(translation)
         
-        # 每10句显示一次进度
-        if (i + 1) % 10 == 0:
-            logger.info(f"翻译进度: {i + 1}/{len(transcript)}")
+        # 计算进度
+        elapsed_time = time_module.time() - start_time
+        lines_done = i + 1
+        progress_pct = lines_done / total_lines * 100
+        
+        # 计算预估剩余时间
+        if lines_done > 0:
+            avg_time_per_line = elapsed_time / lines_done
+            remaining_lines = total_lines - lines_done
+            remaining_time = avg_time_per_line * remaining_lines
+        else:
+            remaining_time = 0
+        
+        # 格式化时间
+        def format_time(seconds):
+            if seconds < 60:
+                return f"{int(seconds)}秒"
+            elif seconds < 3600:
+                mins = int(seconds // 60)
+                secs = int(seconds % 60)
+                return f"{mins}分{secs}秒"
+            else:
+                hours = int(seconds // 3600)
+                mins = int((seconds % 3600) // 60)
+                return f"{hours}小时{mins}分"
+        
+        # 绘制进度条
+        bar_length = 30
+        filled = int(bar_length * lines_done / total_lines)
+        bar = '█' * filled + '░' * (bar_length - filled)
+        
+        # 显示进度条和详细信息
+        if (i + 1) % 5 == 0 or i == total_lines - 1:
+            logger.info(
+                f"翻译进度: |{bar}| {progress_pct:.1f}% "
+                f"({lines_done}/{total_lines}) "
+                f"⏱️ 已用: {format_time(elapsed_time)} "
+                f"⏳ 剩余: {format_time(remaining_time)}"
+            )
+        
         history.append({'role': 'user', 'content': f'Translate:"{text}"'})
-        history.append({'role': 'assistant', 'content': f'翻译：“{translation}”'})
+        history.append({'role': 'assistant', 'content': f'翻译："{translation}"'})
         time.sleep(0.1)
 
+    # 翻译完成总结
+    total_time = time_module.time() - start_time
+    logger.info(f"✅ 翻译完成！总用时: {format_time(total_time)}")
+    
     return full_translation
 
 def translate(folder, target_language='简体中文'):

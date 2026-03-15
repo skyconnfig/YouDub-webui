@@ -46,6 +46,7 @@ from youdub.step050_synthesize_video import synthesize_all_video_under_folder
 from youdub.step060_genrate_info import generate_all_info_under_folder
 from youdub.step070_upload_bilibili import upload_all_videos_under_folder
 from youdub.do_everything import do_everything
+from youdub.utils import cleanup_translated_folder, list_video_folders, delete_video_folder
 import os
 
 
@@ -170,10 +171,41 @@ upload_bilibili_interface = gr.Interface(
     outputs='text',
 )
 
+# 简化的清理接口 - 显示列表并提供删除功能
+def cleanup_manager(action: str, folder: str = 'videos', delete_path: str = ''):
+    """
+    清理管理器
+    action: "list" - 列出视频, "cleanup" - 清理中间文件, "delete" - 删除指定文件夹
+    """
+    if action == "list":
+        return list_video_folders(folder)
+    elif action == "cleanup":
+        return cleanup_translated_folder(folder)
+    elif action == "delete":
+        if not delete_path:
+            return "请输入要删除的文件夹路径"
+        # 确保路径安全
+        full_path = os.path.abspath(delete_path)
+        videos_path = os.path.abspath(folder)
+        if not full_path.startswith(videos_path):
+            return "错误：只能删除 videos 文件夹下的内容"
+        return delete_video_folder(full_path)
+    return "未知操作"
+
+cleanup_interface = gr.Interface(
+    fn=cleanup_manager,
+    inputs=[
+        gr.Dropdown(['list', 'cleanup', 'delete'], label='操作', value='list'),
+        gr.Textbox(label='Folder', value='videos'),
+        gr.Textbox(label='删除路径 (仅删除操作需要)', placeholder='例如: videos/SamCux/xxx'),
+    ],
+    outputs='text',
+)
+
 app = gr.TabbedInterface(
-    interface_list=[do_everything_interface,youtube_interface, demucs_interface,
-                    whisper_inference, translation_interface, tts_interafce, syntehsize_video_interface, upload_bilibili_interface],
-    tab_names=['全自动', '下载视频', '人声分离', '语音识别', '字幕翻译', '语音合成', '视频合成', '上传B站'],
+    interface_list=[do_everything_interface, youtube_interface, demucs_interface,
+                    whisper_inference, translation_interface, tts_interafce, syntehsize_video_interface, upload_bilibili_interface, cleanup_interface],
+    tab_names=['全自动', '下载视频', '人声分离', '语音识别', '字幕翻译', '语音合成', '视频合成', '上传B站', '文件管理'],
     title='LXS_Dub')
 if __name__ == '__main__':
     app.launch()
